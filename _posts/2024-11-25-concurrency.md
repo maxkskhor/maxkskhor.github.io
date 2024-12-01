@@ -3,7 +3,7 @@ layout: post
 title: "Concurrency in Python"
 date: 2024-11-25 20:58:44 +0000
 categories: python notes
-permalink: /notes/python
+permalink: /notes/python/concurrency
 ---
 
 ## Concurrency
