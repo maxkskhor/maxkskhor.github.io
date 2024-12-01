@@ -1,12 +1,18 @@
 ---
 layout: post
 title: "Metaprogramming in Python"
-date: 2024-11-25 21:13:00 +0000
+date: 2024-12-01 21:13:00 +0000
 categories: python notes
 permalink: /notes/python/metaprogramming
 ---
 
+> "In computer programming jargon, a heisenbug is a software bug that seems to disappear or alter its behavior when one attempts to study it."
+>
+> Wikipedia
 
+
+
+### Attributes
 1. Python objects have _attributes_, which could be data or a _callable_ (a.k.a. a method).
 2. **Dynamic attributes** look the same as data attributes (i.e. `obj.x`) but the difference is when you actually 'dot x', some underlying computations happen on demand.
 
