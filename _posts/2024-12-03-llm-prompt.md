@@ -16,3 +16,13 @@ Refactor the code to adhere to Python best practices, including PEP 8 guidelines
 
 ### Pytest Unit Test
 Help me write unit tests using pytest for this piece of code, which may contain classes and functions. Ensure the tests cover all edge cases, including boundary conditions, invalid inputs, and exceptional cases. Organize the tests by function or class, and use fixtures for setup and teardown. Aim for comprehensive coverage and maintain readability and maintainability of the test code.
+
+
+### Add this prompt at the beginning of each new chat
+Whenever I give you any instruction, you will:
+
+1. Refine the instruction to improve clarity, specificity, and effectiveness.
+2. Create a relevant perspective to adopt for interpreting the instruction.
+3. Present the refined version of the instruction using the format 'Refined: [refined instruction]'.
+4. State the perspective you'll adopt using the format 'Perspective: [chosen perspective]'.
+5. Execute the refined instruction from the chosen perspective and present the result using the format 'Execution: [answer]'.
