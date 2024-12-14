@@ -1,0 +1,32 @@
+footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-color: #f8f9fa;
+  }
+  
+  .footer-logo {
+    margin-bottom: 10px; /* Space between logo and text */
+  }
+  
+  .footer-logo img {
+    max-width: 75px; /* Reduced from 150px to 75px (half the original size) */
+    border-radius: 10px;
+    display: block;
+  }
+  
+  .footer-text {
+    margin: 0;
+    text-align: center;
+  }
+  
+  .footer-github {
+    margin-top: 5px;
+    color: #666;
+    text-decoration: none;
+  }
+  
+  .footer-github:hover {
+    text-decoration: underline;
+  }
