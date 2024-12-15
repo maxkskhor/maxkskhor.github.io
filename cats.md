@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Cats
+title: My Cats
 permalink: /cats/
 ---
 
@@ -29,7 +29,7 @@ permalink: /cats/
   <img src="{{ site.baseurl }}/assets/images/loki-portrait.jpg" alt="Cirilla Image 2" style="height: auto; width: 40%; border-radius: 15px;">
 </div>
 
-- **🎂 Birthday:** July 15, 2023
+- **🎂 Birthday:** 9:02 AM, July 15, 2023 
 - **🧬 Breed:** Half Maine Coon, half Siberian, 100% Drama Queen
 - **😈 Sins:** Envy and Wrath
 - **💭 Personality:** Expressive, talkative and ocassionally insecure
