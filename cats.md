@@ -15,7 +15,7 @@ permalink: /cats/
   <img src="{{ site.baseurl }}/assets/images/ciri-sleeping.jpg" alt="Cirilla Image 2" style="height: auto; width: 55%; border-radius: 15px;">
 </div>  
 
-- **🎂 Birthday:** February 2, 2023
+- **🎂 Birthday:** February, 2023
 - **🧬 Breed:** 75% Ragdoll, 25% British Shorthair
 - **😈 Sins:** Sloth and Gluttony
 - **💭 Personality:** Shy of strangers, get moody easily
@@ -29,7 +29,7 @@ permalink: /cats/
   <img src="{{ site.baseurl }}/assets/images/loki-portrait.jpg" alt="Cirilla Image 2" style="height: auto; width: 40%; border-radius: 15px;">
 </div>
 
-- **🎂 Birthday:** 9:02 AM, July 15, 2023 
+- **🎂 Birthday:** July, 2023 
 - **🧬 Breed:** Half Maine Coon, half Siberian, 100% Drama Queen
 - **😈 Sins:** Envy and Wrath
 - **💭 Personality:** Expressive, talkative and ocassionally insecure
