@@ -6,73 +6,280 @@
     <title>Max Khor</title>
     <style>
       :root {
-        color-scheme: light dark;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        line-height: 1.55;
+        --green: #3d6b4f;
+        --green-light: #5a8f6e;
+        --bg: #f2f0ec;
+        --card-bg: #ffffff;
+        --text: #1c1c1c;
+        --muted: #5a5a5a;
+        --rule: #3d6b4f;
+        --btn-border: #d2cfc9;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+        color: var(--text);
+        background: var(--bg);
       }
+
+      *, *::before, *::after { box-sizing: border-box; }
 
       body {
         margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 32px;
+        padding: 2.5rem 1.25rem;
       }
 
-      main {
-        width: min(100%, 720px);
+      .page {
+        max-width: 860px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2.5rem;
       }
 
-      h2 {
+      /* ── Header card ── */
+      .header-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 2rem 2.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      }
+
+      .name {
+        font-size: clamp(2rem, 5vw, 2.75rem);
+        font-weight: 700;
         margin: 0 0 1rem;
-        font-size: clamp(2rem, 5vw, 3.75rem);
-        line-height: 1.05;
+        line-height: 1.1;
+        letter-spacing: -.5px;
       }
 
-      p,
-      ul {
+      .name .first { color: var(--green); }
+      .name .last  { color: var(--text); font-weight: 400; }
+
+      .bio {
         font-size: 1.05rem;
+        color: var(--text);
+        margin: 0 0 1.5rem;
+        max-width: 640px;
       }
 
-      a {
-        color: inherit;
+      /* ── Link buttons ── */
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .3rem .85rem;
+        border: 1px solid var(--btn-border);
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: .875rem;
+        color: var(--text);
+        background: #fff;
+        text-decoration: none;
+        transition: background .15s, border-color .15s;
+        white-space: nowrap;
+      }
+
+      .btn:hover {
+        background: #f7f4f1;
+        border-color: #b8b3ae;
+      }
+
+      /* ── Sections ── */
+      section { display: flex; flex-direction: column; gap: 0; }
+
+      .section-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 0 0 .5rem;
+        letter-spacing: -.3px;
+      }
+
+      .rule {
+        height: 2px;
+        background: var(--rule);
+        border: none;
+        margin: 0 0 1.25rem;
+      }
+
+      /* ── News ── */
+      .news-list {
+        background: var(--card-bg);
+        border-radius: 10px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        overflow: hidden;
+      }
+
+      .news-item {
+        display: grid;
+        grid-template-columns: 7rem 1fr;
+        gap: .5rem 1rem;
+        padding: .9rem 1.5rem;
+        font-size: .975rem;
+        border-bottom: 1px solid #f0eeeb;
+      }
+
+      .news-item:last-child { border-bottom: none; }
+
+      .news-date {
+        color: var(--green);
+        font-weight: 600;
+        white-space: nowrap;
+        padding-top: .02em;
+      }
+
+      /* ── Projects ── */
+      .project-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1rem;
+      }
+
+      .project-card {
+        background: var(--card-bg);
+        border-radius: 10px;
+        padding: 1.25rem 1.4rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        text-decoration: none;
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+        transition: box-shadow .15s;
+      }
+
+      .project-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,.1); }
+
+      .project-name {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--green);
+      }
+
+      .project-desc {
+        font-size: .9rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .project-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .3rem;
+        margin-top: .25rem;
+      }
+
+      .tag {
+        font-size: .75rem;
+        padding: .15rem .55rem;
+        border-radius: 999px;
+        background: #f0eeeb;
+        color: var(--muted);
+      }
+
+      /* ── Writing ── */
+      .writing-list {
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
+      }
+
+      .writing-item {
+        background: var(--card-bg);
+        border-radius: 10px;
+        padding: 1rem 1.4rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        text-decoration: none;
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        transition: box-shadow .15s;
+      }
+
+      .writing-item:hover { box-shadow: 0 3px 10px rgba(0,0,0,.1); }
+
+      .writing-title {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--green);
+      }
+
+      .writing-meta {
+        font-size: .85rem;
+        color: var(--muted);
+      }
+
+      /* ── Footer ── */
+      footer {
+        text-align: center;
+        font-size: .82rem;
+        color: #aaa;
+        padding-bottom: 1rem;
+      }
+
+      @media (max-width: 520px) {
+        .header-card { padding: 1.5rem 1.25rem; }
+        .news-item { grid-template-columns: 1fr; gap: .1rem; }
+        .news-date { font-size: .85rem; }
       }
     </style>
   </head>
   <body>
-    <main>
-      <h2>Max Khor</h2>
+    <div class="page">
 
-      <p>
-        I build the harness layer of LLM agent systems — the loop, tool dispatch,
-        context management, observability, and optimisation that make agents
-        reliable in production.
-      </p>
+      <!-- Header -->
+      <div class="header-card">
+        <h1 class="name"><span class="first">Max</span> <span class="last">Khor</span></h1>
+        <p class="bio">
+          I'm a mathematician turned AI engineer, based in London. My work spans
+          the infrastructure layer of LLM systems — loops, tool dispatch, context
+          handling, observability — and quantitative modelling: anomaly detection
+          and signal generation. I studied mathematics at Cambridge.
+        </p>
+        <div class="links">
+          <a class="btn" href="mailto:maxkskhor@gmail.com">✉ Email</a>
+          <a class="btn" href="https://github.com/maxkskhor" target="_blank">⌥ GitHub</a>
+          <a class="btn" href="https://linkedin.com/in/max-khor/" target="_blank">in LinkedIn</a>
+          <a class="btn" href="https://substack.com/@maxkhor" target="_blank">✍ Substack</a>
+        </div>
+      </div>
 
-      <p><strong>What I work on</strong></p>
+      <!-- Projects -->
+      <section>
+        <h2 class="section-title">Projects</h2>
+        <hr class="rule">
+        <div class="project-grid">
+          <a class="project-card" href="https://github.com/maxkskhor/data-harness" target="_blank">
+            <span class="project-name">data-harness</span>
+            <span class="project-desc">Python SDK for controlled data-agent workflows. No bash. Handle-based state. Logs that reconstruct every run.</span>
+            <div class="project-tags">
+              <span class="tag">LLM agents</span>
+              <span class="tag">Python</span>
+              <span class="tag">SDK</span>
+            </div>
+          </a>
+        </div>
+      </section>
 
-      <ul>
-        <li>
-          ReAct orchestration with native tool dispatch — error recovery as a loop
-          property, not bolted onto a frozen plan
-        </li>
-        <li>
-          Context engineering: conversation compaction, artefact caching,
-          hybrid retrieval
-        </li>
-        <li>
-          Observability as a first-class concern: per-step latency, token/cache
-          metrics, tool-call traces
-        </li>
-        <li>Closed-loop prompt optimisation against real user feedback</li>
-      </ul>
+      <!-- Writing -->
+      <section>
+        <h2 class="section-title">Writing</h2>
+        <hr class="rule">
+        <div class="writing-list">
+          <a class="writing-item" href="https://maxkskhor.substack.com/p/designing-a-react-harness-for-data" target="_blank">
+            <span class="writing-title">Designing an Agentic Harness for Data Workflows Without Bash</span>
+            <span class="writing-meta">May 2026 · Substack</span>
+          </a>
+        </div>
+      </section>
 
-      <p>
-        📧 maxkskhor@gmail.com · <a href="https://linkedin.com/in/max-khor/">LinkedIn</a> ·
-        <a href="https://github.com/maxkskhor">GitHub</a> ·
-        <a href="https://maxkskhor.github.io/">Personal website</a> ·
-        <a href="https://substack.com/@maxkhor">Substack</a>
-      </p>
-    </main>
+      <footer>maxkskhor.github.io</footer>
+    </div>
   </body>
 </html>
