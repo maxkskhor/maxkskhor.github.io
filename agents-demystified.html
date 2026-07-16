@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents, Demystified — an interactive guide to LLM agents</title>
+<meta name="description" content="An independent, interactive presentation explaining how LLM agents use tools, carry state and complete multi-step work.">
+<link rel="icon" href="data:,">
+<style>
+/* ============================================================
+   Birchline tokens
+   ============================================================ */
+:root {
+  --ivory:    #FAF9F5;
+  --slate:    #141413;
+  --clay:     #D97757;
+  --clay-ink: #C7684C;
+  --oat:      #E3DACC;
+  --olive:    #788C5D;
+  --rust:     #B04A3F;
+  --amber-ink:#A06A2A;
+
+  --white:    #FFFFFF;
+  --gray-100: #F0EEE6;
+  --gray-300: #D1CFC5;
+  --gray-500: #87867F;
+  --gray-700: #3D3D3A;
+
+  --serif: ui-serif, Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+  --sans:  system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono:  ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-pill: 999px;
+  --border: 1.5px solid var(--gray-300);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--ivory);
+  color: var(--slate);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.55;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--gray-100);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--gray-700);
+}
+
+/* ============================================================
+   Deck chrome
+   ============================================================ */
+.slide {
+  position: absolute;
+  inset: 0;
+  display: none;
+  padding: 48px 72px 72px;
+}
+.slide.on {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  animation: rise .35s ease;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.inner { width: 100%; max-width: 1080px; }
+.inner--wide { max-width: 1220px; }
+
+.hud {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  pointer-events: none;
+  z-index: 10;
+}
+.hud span {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+}
+
+/* section rail — minimalist navigator */
+.rail {
+  position: fixed;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+.rail-dash {
+  width: 44px;
+  height: 22px;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+}
+.rail-dash::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 20px;
+  height: 2px;
+  background: var(--gray-300);
+  border-radius: 1px;
+  transition: background .15s ease, width .15s ease;
+}
+.rail-dash:hover::after { background: var(--gray-500); width: 28px; }
+.rail-dash.on::after { background: var(--slate); width: 28px; }
+.rail-dash:hover::before {
+  content: attr(data-sec);
+  position: absolute;
+  left: 48px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--gray-700);
+  background: var(--gray-100);
+  border-radius: var(--r-pill);
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+@media (max-width: 900px) { .rail { display: none; } }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gray-500);
+  margin-bottom: 14px;
+}
+h1.slide-title {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 28px;
+}
+.lede { font-size: 20px; color: var(--gray-700); max-width: 46em; }
+
+.auto-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  border: var(--border);
+  border-radius: var(--r-pill);
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+/* ---------- Title slide ---------- */
+.slide--title { text-align: center; }
+.slide--title .t-display {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(48px, 6.5vw, 76px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 18px 0 10px;
+}
+.slide--title .subtitle {
+  font-family: var(--serif);
+  font-size: clamp(22px, 2.6vw, 30px);
+  color: var(--gray-700);
+  font-style: italic;
+  margin-bottom: 34px;
+}
+.title-rule { width: 72px; border: none; border-top: 1.5px solid var(--clay); margin: 0 auto 34px; }
+.hint { font-family: var(--mono); font-size: 12px; color: var(--gray-500); margin-top: 46px; }
+
+/* ---------- Section marker slides ---------- */
+.slide--marker { text-align: left; }
+.marker-num {
+  font-family: var(--serif);
+  font-size: clamp(80px, 11vw, 140px);
+  line-height: 1;
+  color: var(--clay);
+  font-weight: 500;
+}
+.marker-title {
+  font-family: var(--serif);
+  font-size: clamp(34px, 4.6vw, 54px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 10px 0 12px;
+}
+.marker-sub { font-size: 20px; color: var(--gray-500); }
+
+/* ---------- Common components ---------- */
+.panel {
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--r-md);
+  padding: 22px 26px;
+}
+.note {
+  background: var(--gray-100);
+  border-radius: var(--r-sm);
+  padding: 16px 22px;
+  color: var(--gray-700);
+  font-size: 18px;
+}
+.note strong { color: var(--slate); }
+
+.highlights { list-style: none; margin: 0; padding: 0; }
+.highlights li {
+  position: relative;
+  padding: 0 0 16px 28px;
+  font-size: 19px;
+  color: var(--gray-700);
+}
+.highlights li::before {
+  content: "";
+  position: absolute;
+  left: 6px; top: 10px;
+  width: 7px; height: 7px;
+  border-radius: 2px;
+  background: var(--clay);
+}
+.highlights li strong { color: var(--slate); font-weight: 600; }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: stretch; }
+.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+
+.panel h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 21px;
+  margin: 0 0 10px;
+}
+.panel p { margin: 0; color: var(--gray-700); font-size: 16px; }
+.panel .eyebrow { margin-bottom: 8px; }
+
+table.data {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+table.data thead th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--gray-300);
+}
+table.data tbody td {
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 17px;
+  color: var(--gray-700);
+  vertical-align: top;
+}
+table.data tbody tr:last-child td { border-bottom: none; }
+table.data td strong { color: var(--slate); }
+
+pre.code {
+  background: var(--slate);
+  color: var(--oat);
+  font-family: var(--mono);
+  font-size: 16.5px;
+  line-height: 1.65;
+  padding: 24px 28px;
+  border-radius: var(--r-md);
+  overflow-x: auto;
+  margin: 0;
+}
+pre.code .c-comment { color: var(--gray-500); }
+pre.code .c-accent  { color: var(--clay); }
+
+.stat-card {
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--r-md);
+  padding: 22px 24px 20px;
+}
+.stat-card.evidence-card .stat-label {
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.45;
+  color: var(--gray-700);
+}
+.stat-num {
+  font-family: var(--serif);
+  font-size: 52px;
+  font-weight: 500;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+.stat-label {
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-500);
+  line-height: 1.45;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--r-pill);
+}
+.badge-warning { background: rgba(199,142,63,0.16); color: var(--amber-ink); }
+.badge-success { background: rgba(120,140,93,0.16); color: var(--olive); }
+.badge-danger  { background: rgba(176,74,64,0.14); color: var(--rust); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 16px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--r-sm);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+.btn-primary { background: var(--clay); color: var(--white); }
+.btn-primary:hover { background: var(--clay-ink); }
+.btn-primary:disabled { background: var(--gray-300); cursor: default; }
+.btn-secondary { background: var(--white); color: var(--slate); border-color: var(--gray-300); }
+.btn-secondary:hover { background: var(--gray-100); }
+
+.checkbox { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; user-select: none; color: var(--gray-700); }
+.checkbox input {
+  appearance: none;
+  width: 17px; height: 17px;
+  border: var(--border);
+  border-radius: 5px;
+  background: var(--white);
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+}
+.checkbox input:checked { background: var(--clay); border-color: var(--clay); }
+.checkbox input:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px; top: 1px;
+  width: 4px; height: 9px;
+  border: solid var(--white);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* quote slide */
+.bigquote {
+  font-family: var(--serif);
+  font-size: clamp(26px, 3.4vw, 38px);
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  max-width: 22em;
+}
+.bigquote .q { color: var(--clay); }
+
+/* message-array chips */
+.msg-strip { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.msg-chip {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 11px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--gray-300);
+  background: var(--white);
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+.msg-chip.is-asst { background: var(--oat); border-color: var(--oat); color: var(--slate); }
+.msg-chip.is-sys  { background: var(--gray-100); border-color: var(--gray-100); }
+.msg-arrow { color: var(--gray-500); font-family: var(--mono); font-size: 12px; }
+
+/* click-to-reveal panels */
+.reveal { cursor: pointer; transition: border-color .12s ease; position: relative; }
+.reveal:hover { border-color: var(--gray-500); }
+.reveal .reveal-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+  margin-top: 12px;
+}
+.reveal .reveal-ex {
+  display: none;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--gray-700);
+  background: var(--gray-100);
+  border-radius: 6px;
+  padding: 8px 12px;
+  animation: rise .25s ease;
+}
+.panel.reveal { padding: 17px 22px; }
+.reveal.open .reveal-ex { display: block; }
+.reveal.open .reveal-hint { display: none; }
+
+/* opening reveal */
+.hook-demo {
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.hook-turn { padding: 12px 20px; border-bottom: 1px solid var(--gray-100); }
+.hook-turn .entry-label { margin-bottom: 5px; }
+.hook-turn p { margin: 0; font-size: 16px; color: var(--gray-700); }
+.hook-turn pre.code { margin-top: 10px; padding: 10px 14px; font-size: 12.5px; }
+.hook-demo .widget-bar { margin-bottom: 0; padding: 16px 20px; }
+.hook-reveal {
+  display: none;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--gray-300);
+  background: var(--gray-100);
+  font-size: 16px;
+  color: var(--gray-700);
+  animation: rise .25s ease;
+}
+.hook-reveal.show { display: block; }
+.hook-demo .hook-reveal { margin: 0 20px 16px; }
+.hook-reveal strong { color: var(--slate); }
+
+/* four-part loop stepper */
+.loop-task { padding: 11px 16px; background: var(--gray-100); color: var(--gray-700); font-size: 14px; }
+.loop-step-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 14px 16px 12px; }
+.loop-step-card {
+  border: var(--border);
+  border-radius: var(--r-sm);
+  padding: 14px;
+  min-height: 142px;
+  opacity: .38;
+  transition: opacity .18s ease, border-color .18s ease, background .18s ease;
+}
+.loop-step-card.on { opacity: 1; border-color: var(--clay); background: rgba(217,119,87,.05); }
+.loop-step-card.seen { opacity: .8; }
+.loop-step-card.on.seen { opacity: 1; }
+.loop-step-card p { opacity: 0; transition: opacity .2s ease; }
+.loop-step-card.seen p, .loop-step-card.on p { opacity: 1; }
+.loop-step-num { font-family: var(--mono); font-size: 10px; color: var(--clay); letter-spacing: .08em; margin-bottom: 7px; }
+.loop-step-card h3 { font-size: 18px; margin-bottom: 8px; }
+.loop-step-card p { font-size: 13.5px; color: var(--gray-700); margin: 0; }
+.loop-step-log { border-top: 1px solid var(--gray-100); padding: 11px 16px 13px; display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.loop-step-log .msg-strip { flex: 1; }
+.loop-step-status { font-family: var(--mono); font-size: 11px; color: var(--gray-500); text-align: right; max-width: 320px; }
+
+/* further reading */
+.read-item { padding: 11px 0; border-bottom: 1px solid var(--gray-100); }
+.read-item:last-child { border-bottom: none; }
+.read-item h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; margin: 0 0 3px; }
+.read-item p { margin: 0 0 3px; font-size: 15px; color: var(--gray-700); }
+.read-item .url { font-family: var(--mono); font-size: 11px; color: var(--gray-500); }
+.read-item a.url { text-decoration: none; }
+
+/* per-card source line on stat cards */
+.stat-src {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--gray-500);
+  margin-top: 10px;
+}
+
+/* diagram helpers */
+.diagram { background: var(--white); border: var(--border); border-radius: var(--r-md); padding: 24px 26px 16px; }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram-caption {
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.d-label { font-family: var(--mono); font-size: 11px; fill: var(--gray-500); letter-spacing: .05em; }
+.d-label-dark { font-family: var(--mono); font-size: 12px; fill: var(--slate); }
+.d-box { fill: var(--white); stroke: var(--gray-300); stroke-width: 1.5; }
+.d-line { stroke: var(--gray-300); stroke-width: 1.5; fill: none; }
+
+/* takeaway slide */
+.take-q {
+  font-family: var(--serif);
+  font-size: clamp(26px, 3.2vw, 36px);
+  font-weight: 500;
+  line-height: 1.35;
+  margin: 0;
+  padding: 26px 0;
+  border-bottom: 1px solid var(--gray-300);
+}
+.take-q:first-of-type { border-top: 1px solid var(--gray-300); }
+.take-q .n { color: var(--clay); font-size: 0.8em; margin-right: 18px; }
+
+/* ============================================================
+   Widget shared
+   ============================================================ */
+.widget {
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--r-md);
+  padding: 18px 20px;
+  width: 100%;
+}
+.widget-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--gray-100);
+  margin-bottom: 14px;
+}
+.widget-controls { display: flex; gap: 8px; align-items: center; }
+
+.entry { margin-bottom: 10px; animation: rise .3s ease; }
+.entry-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--gray-500);
+  margin-bottom: 3px;
+}
+.entry-think { font-size: 14.5px; color: var(--gray-700); }
+.entry-act {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--slate);
+  color: var(--oat);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.entry-obs {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--gray-100);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  color: var(--gray-700);
+}
+.entry-answer {
+  font-size: 14.5px;
+  background: var(--white);
+  border: var(--border);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  color: var(--gray-700);
+}
+
+/* ---------- Widget 0: no-memory demo ---------- */
+.w0-feed { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; min-height: 230px; }
+.w0-card { border: var(--border); border-radius: var(--r-sm); padding: 14px 16px; animation: rise .3s ease; }
+.w0-msg {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--gray-100);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  color: var(--gray-700);
+}
+.w0-msg.w0-old { background: var(--oat); color: var(--slate); }
+.w0-reply { font-size: 15px; margin-top: 12px; color: var(--gray-700); }
+.w0-reply .entry-label { display: block; margin-bottom: 3px; }
+.w0-reply strong { color: var(--slate); }
+.w0-note { font-size: 12.5px; color: var(--gray-500); margin-top: 10px; line-height: 1.45; }
+.w0-take { font-size: 16px; margin-top: 16px; color: var(--gray-700); min-height: 26px; }
+.w0-take strong { color: var(--slate); }
+
+/* ---------- Widget 1: loop visualizer ---------- */
+.w1-body { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+pre.code.w1-code {
+  font-size: 12px;
+  line-height: 1.75;
+  padding: 12px 10px;
+  border-radius: var(--r-sm);
+}
+.w1-ln { display: block; padding: 0 8px; border-radius: 4px; transition: background .15s ease; }
+.w1-ln.lit { background: rgba(217, 119, 87, 0.35); color: #FFFFFF; }
+.w1-cycle {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .05em;
+  color: var(--gray-500);
+  margin-top: 10px;
+  text-transform: uppercase;
+}
+.w1-cycle span[data-cy].lit { color: var(--clay); font-weight: 600; }
+.w1-cycle-loop { font-size: 13px; }
+.w1-bracket { font-family: var(--mono); font-size: 14px; color: var(--gray-500); }
+.w1-status { font-family: var(--mono); font-size: 11px; color: var(--gray-500); margin-top: 8px; min-height: 30px; }
+.w1-task {
+  font-size: 14px;
+  background: var(--gray-100);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  color: var(--gray-700);
+  margin-bottom: 12px;
+}
+.w1-task strong { color: var(--slate); }
+#w1-feed { max-height: 40vh; overflow-y: auto; padding-right: 6px; }
+.w1-context {
+  border-top: 1px solid var(--gray-100);
+  margin-top: 14px;
+  padding-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: 16px;
+}
+.w1-tokens { font-family: var(--mono); font-size: 12px; color: var(--gray-500); white-space: nowrap; padding-top: 4px; }
+.w1-tokens strong { color: var(--slate); font-weight: 600; }
+
+/* ---------- Widget 2: orchestration ---------- */
+.seg { display: inline-flex; border: var(--border); border-radius: var(--r-sm); overflow: hidden; }
+.seg button {
+  border: none;
+  background: var(--white);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.seg button.on { background: var(--slate); color: var(--white); }
+
+.w2-watch { font-size: 13.5px; color: var(--gray-700); margin-bottom: 12px; }
+.w2-watch strong { color: var(--slate); }
+
+.w2-orch {
+  background: var(--gray-100);
+  border-radius: var(--r-sm);
+  padding: 10px 16px;
+  margin-bottom: 12px;
+}
+.w2-orch .entry-label { margin-bottom: 6px; }
+.w2-orch-line { font-size: 14px; color: var(--gray-700); margin-bottom: 4px; animation: rise .3s ease; }
+.w2-orch-line strong { color: var(--slate); }
+.w2-inbox { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+.w2-inbox-chip {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 5px 8px;
+  border: 1px dashed var(--gray-300);
+  border-radius: 5px;
+  color: var(--gray-500);
+  background: var(--white);
+}
+.w2-inbox-chip.received { border-style: solid; border-color: var(--clay); color: var(--slate); background: rgba(217,119,87,.07); }
+.w2-boundary { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--gray-500); margin: 0 0 7px; }
+
+.w2-workers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.w2-worker {
+  border: var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  min-height: 96px;
+  opacity: .45;
+  transition: opacity .3s ease;
+}
+.w2-worker.live { opacity: 1; }
+.w2-worker h4 {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+.w2-line { font-family: var(--mono); font-size: 11.5px; color: var(--gray-700); margin-bottom: 5px; animation: rise .3s ease; }
+.w2-line.dim { color: var(--gray-500); }
+.w2-result {
+  font-size: 13px;
+  background: var(--gray-100);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--gray-700);
+  margin-top: 8px;
+  animation: rise .3s ease;
+}
+.w2-result::before { content: "FINAL REPORT → LEAD"; display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--clay); margin-bottom: 4px; }
+.w2-meter { height: 5px; background: var(--gray-100); border-radius: 3px; margin: 8px 0 2px; overflow: hidden; }
+.w2-meter i { display: block; height: 100%; width: 0%; background: var(--gray-500); border-radius: 3px; transition: width 1.4s ease; }
+.w2-meter-cap { font-family: var(--mono); font-size: 10.5px; color: var(--gray-500); }
+
+.w2-out {
+  border: var(--border);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+  min-height: 48px;
+}
+.w2-out .entry-label { margin-bottom: 8px; }
+.w2-brief { font-size: 14.5px; color: var(--gray-700); margin: 0 0 6px; animation: rise .3s ease; }
+.w2-brief strong { color: var(--slate); }
+.w2-brief.clash { background: rgba(176,74,64,0.10); border-radius: 4px; padding: 3px 8px; }
+.w2-brief.verdict { color: var(--rust); }
+.w2-stats { font-family: var(--mono); font-size: 11.5px; color: var(--gray-500); margin-top: 10px; animation: rise .3s ease; }
+.w2-stats strong { color: var(--slate); font-weight: 600; }
+
+.w2-draft {
+  border: 1.5px dashed var(--gray-300);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: none;
+}
+.w2-draft.show { display: block; }
+.w2-draft-line { font-family: var(--mono); font-size: 12px; color: var(--gray-700); margin-bottom: 5px; animation: rise .3s ease; }
+.w2-draft-line.clash { background: rgba(176,74,64,0.10); border-radius: 4px; padding: 2px 6px; }
+.w2-draft-line b { font-weight: 600; color: var(--gray-500); }
+
+/* Keep the completed orchestration demo inside a 16:9 presentation frame. */
+#w2.widget { padding: 14px 20px; }
+#w2 .widget-bar { padding-bottom: 10px; margin-bottom: 10px; }
+#w2 .w2-watch { margin-bottom: 8px; }
+#w2 .w2-orch { padding: 8px 14px; margin-bottom: 8px; }
+#w2 .w2-orch .entry-label { margin-bottom: 3px; }
+#w2 .w2-orch-line { font-size: 13px; margin-bottom: 2px; }
+#w2 .w2-inbox { gap: 5px; margin-top: 5px; }
+#w2 .w2-inbox-chip { font-size: 11px; padding: 4px 7px; }
+#w2 .w2-workers { margin-bottom: 8px; }
+#w2 .w2-worker { padding: 8px 10px; }
+#w2 .w2-worker h4 { margin-bottom: 6px; }
+#w2 .w2-line { font-size: 11.5px; margin-bottom: 3px; }
+#w2 .w2-result { font-size: 12.5px; padding: 6px 8px; margin-top: 6px; }
+#w2 .w2-result::before { font-size: 10.5px; margin-bottom: 3px; }
+#w2 .w2-meter { margin-top: 6px; }
+#w2 .w2-meter-cap { font-size: 11px; }
+#w2 .w2-out { padding: 10px 14px; }
+#w2 .w2-out .entry-label { margin-bottom: 6px; }
+#w2 .w2-brief { font-size: 13.5px; margin-bottom: 4px; }
+#w2 .w2-stats { font-size: 11.5px; margin-top: 5px; }
+#w2 .w2-draft { padding: 8px 12px; margin-bottom: 8px; }
+#w2 .w2-draft-line { font-size: 11px; margin-bottom: 3px; }
+
+@media (max-width: 900px) {
+  .slide { padding: 32px 24px 64px; }
+  .cols, .cols-3, .w0-feed, .w1-body, .w2-workers { grid-template-columns: 1fr; }
+}
+
+
+/* ============================================================
+   v5 additions
+   ============================================================ */
+.flow { display: flex; flex-direction: column; }
+.flow-step {
+  display: flex; align-items: center; gap: 16px;
+  padding: 9px 18px;
+  background: var(--white); border: var(--border); border-radius: var(--r-sm);
+  transition: opacity .25s ease, border-color .25s ease;
+}
+.flow-step .who {
+  font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--gray-500); min-width: 72px; flex: none;
+}
+.flow-step .who.hl { color: var(--clay); font-weight: 600; }
+.flow-step p { margin: 0; font-size: 15px; color: var(--gray-700); }
+.flow-step p strong { color: var(--slate); }
+.flow-arrow { text-align: center; color: var(--gray-500); font-size: 12px; line-height: 1; padding: 3px 0; transition: opacity .25s ease; }
+.flow .dim { opacity: .15; }
+.flow-step.now { border-color: var(--clay); }
+
+.anno-row {
+  display: grid; grid-template-columns: 230px 1fr; gap: 18px; align-items: center;
+  padding: 9px 2px; border-bottom: 1px solid var(--gray-100);
+}
+.anno-row:last-child { border-bottom: none; }
+.anno-stage { font-family: var(--mono); font-size: 12.5px; color: var(--slate); }
+.anno-note { font-size: 15px; color: var(--gray-700); opacity: 0; transition: opacity .25s ease; }
+.anno-note strong { color: var(--slate); }
+.anno-row.seen .anno-note { opacity: 1; }
+.anno-row.on .anno-stage { color: var(--clay); }
+
+pre.code.tsx { font-size: 11.5px; line-height: 1.6; padding: 13px 15px; }
+
+.qa .take-q { padding: 15px 0; font-size: clamp(20px, 2.3vw, 27px); }
+.qa .take-q .a {
+  display: block; font-family: var(--sans); font-size: 15.5px; font-weight: 400;
+  color: var(--gray-500); margin: 4px 0 0 44px; line-height: 1.5;
+}
+
+mark.q { background: rgba(217,119,87,.18); color: var(--slate); border-radius: 3px; padding: 0 3px; }
+
+.fsbtn {
+  position: fixed; right: 18px; top: 14px; z-index: 30;
+  font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--gray-500); background: transparent;
+  border: 1px solid var(--gray-300); border-radius: var(--r-pill);
+  padding: 5px 11px; cursor: pointer;
+}
+.fsbtn:hover { color: var(--gray-700); border-color: var(--gray-500); }
+
+.w1-context > div:first-child { min-width:0; }
+#w1-chips { max-width:100%; flex-wrap:wrap; overflow:hidden; gap:6px; }
+#w1-chips .msg-chip { flex:none; }
+#w1-chips .is-summary { border-style:dashed; color:var(--gray-500); background:transparent; }
+
+.section-landing .inner { max-width:980px; position:relative; }
+.section-number { font-family:var(--serif); font-size:180px; line-height:.78; color:var(--gray-100); position:absolute; right:0; top:-58px; z-index:-1; }
+.section-title { font-family:var(--serif); font-weight:500; font-size:clamp(48px,6.5vw,76px); line-height:1.05; letter-spacing:-.02em; margin:20px 0 22px; max-width:820px; }
+.section-lede { font-size:25px; line-height:1.45; color:var(--gray-700); max-width:790px; margin:0; }
+.section-sequence { display:flex; align-items:center; gap:12px; margin-top:46px; font-family:var(--mono); font-size:12px; color:var(--gray-700); text-transform:uppercase; letter-spacing:.06em; }
+.section-sequence span { padding:9px 13px; border-top:1px solid var(--gray-300); border-bottom:1px solid var(--gray-300); }
+.section-sequence b { color:var(--clay); font-weight:500; }
+
+.read-item.compact { padding: 8px 0; }
+.read-item.compact h3 { font-size: 17px; }
+.read-item.compact p { font-size: 14px; }
+
+.take-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.mini-loop { display:flex; align-items:center; gap:9px; padding-bottom:24px; white-space:nowrap; }
+.mini-loop span { font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; border:1px solid var(--gray-300); border-radius:var(--r-pill); padding:7px 10px; background:var(--white); }
+.mini-loop b { color:var(--clay); font-family:var(--mono); font-weight:500; }
+.take-item { border-top:2px solid var(--gray-300); padding:15px 4px 4px; }
+.take-item .num { font-family:var(--mono); font-size:11px; color:var(--clay); letter-spacing:.08em; }
+.take-item h3 { font-size:21px; margin:7px 0 5px; }
+.take-item p { font-size:15px; margin:0; color:var(--gray-700); }
+
+.model-input { border:1.5px solid var(--gray-300); border-radius:var(--r-md); padding:18px 22px; background:var(--white); }
+.input-band { display:grid; grid-template-columns:170px 1fr; gap:18px; align-items:start; padding:13px 0; border-bottom:1px solid var(--gray-100); }
+.input-band:last-child { border-bottom:none; }
+.input-band h3 { font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--clay); margin:2px 0 0; }
+.input-band p { font-size:16px; color:var(--gray-700); margin:0; }
+
+.process { display:flex; align-items:stretch; gap:10px; }
+.process-step { flex:1; border:1px solid var(--gray-300); border-radius:var(--r-sm); background:var(--white); padding:12px 14px; min-width:0; }
+.process-step h3 { font-size:16px; margin:2px 0 5px; }
+.process-step p { font-size:12.5px; color:var(--gray-500); margin:0; }
+.process-n { font-family:var(--mono); font-size:10px; color:var(--clay); }
+.process-arrow { display:flex; align-items:center; color:var(--clay); font-family:var(--mono); }
+
+.stop-grid { display:grid; grid-template-columns:1.35fr .8fr; gap:26px; align-items:center; }
+.stop-list { counter-reset:stops; list-style:none; padding:0; margin:0; }
+.stop-list li { counter-increment:stops; position:relative; padding:9px 0 9px 38px; border-bottom:1px solid var(--gray-100); font-size:15px; color:var(--gray-700); }
+.stop-list li::before { content:counter(stops); position:absolute; left:0; top:8px; width:24px; height:24px; border:1px solid var(--gray-300); border-radius:50%; font-family:var(--mono); font-size:10px; display:flex; align-items:center; justify-content:center; color:var(--clay); }
+
+.trace { border:1px solid var(--gray-300); border-radius:var(--r-md); background:var(--white); padding:14px 18px; }
+.trace-line { display:grid; grid-template-columns:116px 1fr; gap:14px; padding:8px 0; border-bottom:1px solid var(--gray-100); }
+.trace-line:last-child { border-bottom:none; }
+.trace-role { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--gray-500); padding-top:3px; }
+.trace-body { font-family:var(--mono); font-size:12px; color:var(--gray-700); line-height:1.5; }
+.trace-body strong { color:var(--slate); }
+
+.prefix-bar { display:flex; height:76px; border:1px solid var(--gray-300); border-radius:var(--r-sm); overflow:hidden; background:var(--white); }
+.prefix-seg { display:flex; align-items:center; justify-content:center; padding:0 14px; border-right:1px solid var(--gray-300); font-family:var(--mono); font-size:11px; text-align:center; color:var(--gray-700); }
+.prefix-seg.static { background:var(--gray-100); }
+.prefix-seg.grow { background:rgba(217,119,87,.09); flex:1; }
+
+.metr-wrap { display:grid; grid-template-columns:1.6fr .75fr; gap:24px; align-items:center; }
+.metr-slide h1.slide-title { font-size:clamp(32px,3.6vw,42px); margin-bottom:20px; }
+.metr-wrap img { width:100%; max-height:450px; object-fit:contain; background:#fff; border:1px solid var(--gray-300); border-radius:var(--r-sm); }
+.metr-explain > p { font-size:16px; line-height:1.5; color:var(--gray-700); }
+.metr-explain .note { margin-top:16px; font-size:14px; line-height:1.55; }
+.metr-trend { border-top:1px solid var(--gray-300); padding-top:15px; margin-top:16px; }
+
+.control-matrix { margin-top:8px; border-top:2px solid var(--slate); }
+.control-row { display:grid; grid-template-columns:1.05fr 1.55fr 1.15fr 1.35fr; gap:22px; align-items:center; padding:18px 8px; border-bottom:1px solid var(--gray-300); font-size:15.5px; color:var(--gray-700); }
+.control-row > div { min-width:0; line-height:1.35; }
+.control-row strong { color:var(--slate); font-size:16.5px; }
+.control-head { padding-top:11px; padding-bottom:11px; font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--gray-500); }
+.control-boundary { border-left:3px solid var(--gray-300); padding:8px 10px; font-weight:600; color:var(--slate); }
+.control-boundary.good { border-color:var(--olive); }
+.control-boundary.caution { border-color:var(--amber-ink); }
+.control-boundary.danger { border-color:var(--rust); }
+.source-note { font-family:var(--mono); font-size:10.5px; color:var(--gray-500); margin-top:8px; }
+
+.outer-loop { border:1.5px solid var(--gray-300); border-radius:var(--r-md); padding:17px 22px; background:var(--white); }
+.outer-row { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; }
+.outer-node { border:1px solid var(--gray-300); border-radius:var(--r-sm); padding:11px 14px; font-size:14px; color:var(--gray-700); background:var(--ivory); }
+.outer-arrow { color:var(--clay); font-family:var(--mono); }
+.inner-agent { margin:20px auto 0; max-width:690px; border:2px solid var(--clay); border-radius:var(--r-md); padding:15px 18px; text-align:center; }
+.inner-agent h3 { margin:0 0 6px; font-size:20px; }
+.inner-agent p { margin:0; font-family:var(--mono); font-size:11px; color:var(--gray-500); }
+
+.ladder { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; align-items:end; min-height:270px; }
+.ladder-step { border:1px solid var(--gray-300); border-radius:var(--r-sm) var(--r-sm) 0 0; padding:14px 12px; background:var(--white); display:flex; flex-direction:column; justify-content:flex-end; }
+.ladder-step:nth-child(1){height:105px}.ladder-step:nth-child(2){height:145px}.ladder-step:nth-child(3){height:185px}.ladder-step:nth-child(4){height:225px}.ladder-step:nth-child(5){height:265px}
+.ladder-step h3 { font-size:16px; margin:0 0 7px; }
+.ladder-step p { font-size:12.5px; color:var(--gray-500); margin:0; }
+
+.read-cols { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+.read-col h2 { font-size:22px; margin-bottom:8px; }
+.public-note {
+  max-width:760px; margin-top:34px; padding-top:14px;
+  border-top:1px solid var(--gray-300); font-family:var(--mono);
+  font-size:10.5px; line-height:1.55; letter-spacing:.035em;
+  color:var(--gray-500); text-transform:uppercase;
+}
+</style>
+</head>
+<body>
+
+
+<!-- 01 · TITLE -->
+<section class="slide slide--title" data-sec="Opening">
+  <div class="inner" style="text-align:left;max-width:920px">
+    <div class="eyebrow">An interactive guide to LLM agents</div>
+    <div style="display:flex;align-items:flex-end;gap:44px;margin-top:24px">
+      <div style="flex:1">
+        <div class="t-display" style="text-align:left">Agents,<br>Demystified</div>
+        <p class="subtitle" style="text-align:left;max-width:650px">How LLMs use tools, carry state and complete multi-step work</p>
+      </div>
+      <div class="mini-loop" aria-label="LLM tool loop">
+        <span>LLM</span><b>→</b><span>tool request</span><b>→</b><span>result</span><b>↺</b>
+      </div>
+    </div>
+    <div class="public-note">Independent educational project in a personal capacity — not affiliated with or endorsed by any employer · operational scenarios, identifiers, figures and logs are fictional · public sources are cited · not investment advice</div>
+  </div>
+</section>
+
+<!-- 02 · TAKEAWAYS -->
+<section class="slide" data-sec="Opening">
+  <div class="inner">
+    <div class="eyebrow">Opening</div>
+    <h1 class="slide-title">What this talk will answer</h1>
+    <div class="take-grid">
+      <div class="take-item"><div class="num">01</div><h3>What is an LLM agent?</h3><p>A model call embedded in software that can execute and repeat steps.</p></div>
+      <div class="take-item"><div class="num">02</div><h3>How does it continue?</h3><p>Tool calls and results become part of the next model call.</p></div>
+      <div class="take-item"><div class="num">03</div><h3>Why use more than one agent?</h3><p>Separate contexts support parallel work and create summary handoffs.</p></div>
+      <div class="take-item"><div class="num">04</div><h3>How should we evaluate and control it?</h3><p>Repeat the task, measure the distribution and enforce limits in code.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 · LOOP LANDING -->
+<section class="slide section-landing" data-sec="The loop">
+  <div class="inner">
+    <div class="section-number">01</div>
+    <div class="eyebrow">The loop</div>
+    <h1 class="section-title">The agent loop</h1>
+    <p class="section-lede">The application calls the LLM, runs approved tools and adds each result to the next model call.</p>
+    <div class="section-sequence" aria-label="Agent loop sequence"><span>model call</span><b>→</b><span>tool request</span><b>→</b><span>result</span><b>→</b><span>next model call</span></div>
+  </div>
+</section>
+
+<!-- 04 · MANUAL LOOP -->
+<section class="slide" data-sec="The loop">
+  <div class="inner">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">Copy, run, paste, repeat</h1>
+    <div class="flow" id="manual-flow">
+      <div class="flow-step"><span class="who">You</span><p>Ask: <strong>“Why did demo portfolio’s reported exposure double overnight?”</strong></p></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><span class="who">LLM</span><p>Suggests a SQL query to compare the position snapshots.</p></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><span class="who hl">You</span><p>Copy the query and run it against the database.</p></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><span class="who hl">You</span><p>Paste the returned row counts into the chat.</p></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><span class="who">LLM</span><p>Suggests the next check: inspect the overnight load history.</p></div>
+    </div>
+    <div class="note" style="margin-top:18px"><strong>Fictional example.</strong> Who carries the investigation forward between calls? The person copies every action and result.</div>
+  </div>
+</section>
+
+<!-- 05 · HARNESS LOOP -->
+<section class="slide" data-sec="The loop">
+  <div class="inner">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">The harness runs the round trip</h1>
+    <div class="flow">
+      <div class="flow-step"><span class="who">User</span><p>Supplies the investigation task once.</p></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><span class="who hl">Harness</span><p>Builds the model input and calls the LLM.</p></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><span class="who">LLM</span><p>Returns a structured request for a tool.</p></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><span class="who hl">Harness</span><p>Validates the request, runs the tool and records the result.</p></div>
+      <div class="flow-arrow">↺</div>
+      <div class="flow-step"><span class="who hl">Harness</span><p>Calls the LLM again with the updated transcript.</p></div>
+    </div>
+    <p class="lede" style="margin-top:18px"><strong style="color:var(--slate)">For this talk:</strong> an LLM agent is a software system in which an LLM can select tools, inspect their results and continue until the task finishes or the harness stops the run.</p>
+    <div class="source-note">“Agent” has broader meanings in AI; this talk focuses on tool-using LLM agents.</div>
+  </div>
+</section>
+
+<!-- 06 · MODEL INPUT -->
+<section class="slide" data-sec="The loop">
+  <div class="inner">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">One model call receives three main inputs</h1>
+    <div class="model-input">
+      <div class="entry-label" style="margin-bottom:6px">complete model input</div>
+      <div class="input-band"><h3>System prompt</h3><p>Developer-supplied text that frames the task and the model’s role.</p></div>
+      <div class="input-band"><h3>Tool definitions</h3><p>Function names, descriptions and argument schemas describing the operations the LLM may request.</p></div>
+      <div class="input-band"><h3>Message transcript</h3><p>The ordered user, assistant, tool-call and tool-result history from the current run.</p></div>
+    </div>
+    <div class="note" style="margin-top:20px">The API may expose these as separate request fields. Together they occupy the model’s context window.</div>
+  </div>
+</section>
+
+<!-- 07 · TOOL CALL -->
+<section class="slide" data-sec="The loop">
+  <div class="inner inner--wide">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">The LLM returns a function name and arguments</h1>
+    <div class="cols" style="gap:20px">
+      <div><div class="entry-label">tool definition supplied to the LLM</div><pre class="code tsx">{
+  "name": "run_query",
+  "description": "Run read-only SQL",
+  "parameters": {
+    "sql": "string"
+  }
+}</pre></div>
+      <div><div class="entry-label">structured assistant output</div><pre class="code tsx">{
+  "call_id": "call_17",
+  "name": "run_query",
+  "arguments": {
+    "sql": "SELECT ..."
+  }
+}</pre></div>
+    </div>
+    <div class="process" style="margin-top:22px">
+      <div class="process-step"><div class="process-n">1</div><h3>LLM request</h3><p>name + arguments</p></div><div class="process-arrow">→</div>
+      <div class="process-step"><div class="process-n">2</div><h3>Validation</h3><p>permissions + schema</p></div><div class="process-arrow">→</div>
+      <div class="process-step"><div class="process-n">3</div><h3>Execution</h3><p>function or adapter</p></div><div class="process-arrow">→</div>
+      <div class="process-step"><div class="process-n">4</div><h3>Tool result</h3><p>returned to the loop</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 · LOOP + STOP -->
+<section class="slide" data-sec="The loop">
+  <div class="inner inner--wide">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">The harness repeats the cycle and decides when to stop</h1>
+    <div class="stop-grid">
+      <svg viewBox="0 0 600 380" style="width:100%;height:360px" role="img" aria-label="Agent loop and termination">
+        <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#D97757"/></marker></defs>
+        <rect class="d-box" x="170" y="14" width="260" height="54" rx="10"/><text class="d-label-dark" x="300" y="46" text-anchor="middle">construct model input</text>
+        <line x1="300" y1="68" x2="300" y2="103" stroke="#D97757" stroke-width="2" marker-end="url(#arr)"/>
+        <rect class="d-box" x="205" y="108" width="190" height="54" rx="10"/><text class="d-label-dark" x="300" y="140" text-anchor="middle">call LLM</text>
+        <line x1="300" y1="162" x2="300" y2="197" stroke="#D97757" stroke-width="2" marker-end="url(#arr)"/>
+        <polygon points="300,202 410,252 300,302 190,252" fill="#fff" stroke="#D1CFC5" stroke-width="1.5"/><text class="d-label-dark" x="300" y="256" text-anchor="middle">tool call?</text>
+        <line x1="410" y1="252" x2="500" y2="252" stroke="#D97757" stroke-width="2" marker-end="url(#arr)"/><text class="d-label" x="448" y="240">no</text>
+        <rect class="d-box" x="500" y="225" width="90" height="54" rx="10"/><text class="d-label-dark" x="545" y="246" text-anchor="middle">final</text><text class="d-label-dark" x="545" y="264" text-anchor="middle">response</text>
+        <line x1="300" y1="302" x2="300" y2="326" stroke="#D97757" stroke-width="2" marker-end="url(#arr)"/><text class="d-label" x="315" y="319">yes</text>
+        <rect class="d-box" x="95" y="334" width="410" height="34" rx="8"/><text class="d-label-dark" x="300" y="356" text-anchor="middle">validate → execute → append call + result → repeat</text>
+        <path d="M95,351 C25,351 25,42 165,42" fill="none" stroke="#D97757" stroke-width="2" marker-end="url(#arr)"/>
+      </svg>
+      <ol class="stop-list">
+        <li>The LLM returns a final response.</li>
+        <li>A step, time or cost budget is reached.</li>
+        <li>An approval is required and withheld.</li>
+        <li>A tool or policy error triggers the failure path.</li>
+        <li>The user or application cancels the run.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 09 · MINIMAL CODE -->
+<section class="slide" data-sec="The loop">
+  <div class="inner">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">The minimal loop fits on one screen</h1>
+    <pre class="code" style="font-size:17px;line-height:1.72;padding:24px 28px">tools = [run_query, read_job_log, ...]
+messages = [user_task]
+
+while True:
+    reply = llm(messages, tools)
+    messages.append(reply)
+
+    if not reply.tool_call:
+        break
+
+    result = run_tool(reply.tool_call)
+    messages.append(result)</pre>
+    <p class="lede" style="margin-top:18px">This is the mental model for the rest of the talk: call, act, observe, repeat.</p>
+  </div>
+</section>
+
+<!-- 10 · INTERACTIVE LOOP -->
+<section class="slide" data-sec="The loop">
+  <div class="inner inner--wide">
+    <div class="eyebrow" style="margin-bottom:10px">01 · The loop — now running</div>
+    <div class="widget" id="w1">
+      <div class="widget-bar">
+        <span class="auto-pill">Fictional scenario · simulated · no live model</span>
+        <div class="widget-controls">
+          <div class="seg"><button id="w1-sc-fin" class="on">an exposure anomaly</button><button id="w1-sc-code">a failing test</button></div>
+          <label class="check-label"><input type="checkbox" id="w1-tools" checked> tools</label>
+          <button class="btn btn-secondary" id="w1-reset">Reset</button><button class="btn btn-secondary" id="w1-auto">Auto</button><button class="btn btn-primary" id="w1-step">Step</button>
+        </div>
+      </div>
+      <div class="w1-body">
+        <div><div class="entry-label">minimal loop, running</div><pre class="code w1-code"><span class="w1-ln">tools    = [menu...]</span><span class="w1-ln">messages = [user_task]</span><span class="w1-ln">&nbsp;</span><span class="w1-ln">while True:</span><span class="w1-ln" data-ph="think">  reply = llm(messages, tools)</span><span class="w1-ln" data-ph="act">  messages.append(reply)</span><span class="w1-ln">&nbsp;</span><span class="w1-ln" data-ph="answer">  if not reply.tool_call: break</span><span class="w1-ln">&nbsp;</span><span class="w1-ln" data-ph="observe">  result = run_tool(reply.tool_call)</span><span class="w1-ln" data-ph="observe">  messages.append(result)</span></pre><div class="w1-cycle"><span data-cy="think">think</span> → <span data-cy="act">act</span> → <span data-cy="observe">observe</span> ↻</div><div class="w1-status" id="w1-status">ready — press Step</div></div>
+        <div><div class="w1-task" id="w1-task"></div><div id="w1-feed"></div></div>
+      </div>
+      <div class="w1-context"><div><div class="entry-label">message transcript — the loop appends here</div><div class="msg-row" id="w1-chips"></div></div><div class="w1-tokens">context estimate: <strong id="w1-tok">412</strong> tokens</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 · INTERACTIVE DEBRIEF -->
+<section class="slide" data-sec="The loop">
+  <div class="inner">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">What the harness handled during that run</h1>
+    <div class="panel" id="debrief-panel" style="padding:18px 24px">
+      <div class="widget-bar" style="margin:0 0 8px;padding:0 0 12px"><span class="auto-pill">annotate the trace</span><div><button class="btn btn-secondary" id="debrief-reset">Reset</button> <button class="btn btn-primary" id="debrief-next">Next</button></div></div>
+      <div class="anno-row" data-anno><div class="anno-stage">model request</div><div class="anno-note"><strong>Built from the task, transcript and tool definitions.</strong></div></div>
+      <div class="anno-row" data-anno><div class="anno-stage">tool call</div><div class="anno-note"><strong>Validated and dispatched through the permitted adapter.</strong></div></div>
+      <div class="anno-row" data-anno><div class="anno-stage">tool result</div><div class="anno-note"><strong>Paired with the request and added to the transcript.</strong></div></div>
+      <div class="anno-row" data-anno><div class="anno-stage">next model call</div><div class="anno-note"><strong>Constructed from the updated transcript.</strong></div></div>
+      <div class="anno-row" data-anno><div class="anno-stage">approval / stop</div><div class="anno-note"><strong>Applied by ordinary code around the model.</strong></div></div>
+    </div>
+    <p class="lede" style="margin-top:20px">The next step was only as useful as the evidence returned by the environment.</p>
+  </div>
+</section>
+
+<!-- 12 · ACCURATE TRANSCRIPT -->
+<section class="slide" data-sec="The loop">
+  <div class="inner inner--wide">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">The transcript records each tool call and its result</h1>
+    <div class="trace">
+      <div class="trace-line"><div class="trace-role">user</div><div class="trace-body"><strong>task:</strong> explain why demo portfolio’s exposure doubled overnight</div></div>
+      <div class="trace-line"><div class="trace-role">assistant</div><div class="trace-body"><strong>tool call</strong> · call_id=call_17 · name=run_query · arguments={sql: "SELECT …"}</div></div>
+      <div class="trace-line"><div class="trace-role">tool</div><div class="trace-body"><strong>result</strong> · call_id=call_17 · output={D-1: 1,206, D-0: 2,412}</div></div>
+      <div class="trace-line"><div class="trace-role">assistant</div><div class="trace-body"><strong>tool call</strong> · call_id=call_18 · name=read_job_log · arguments={job: "demo_snapshot_load"}</div></div>
+      <div class="trace-line"><div class="trace-role">tool</div><div class="trace-body"><strong>result</strong> · call_id=call_18 · output={run_1: "timeout", run_2: "success"}</div></div>
+      <div class="trace-line"><div class="trace-role">assistant</div><div class="trace-body"><strong>final response:</strong> duplicated load caused the exposure anomaly; proposed remediation awaits approval</div></div>
+    </div>
+    <div class="source-note">Fictional trace. API role names and envelopes vary; the ordered call/result relationship is the same idea.</div>
+  </div>
+</section>
+
+<!-- 13 · CONTEXT + CACHE -->
+<section class="slide" data-sec="The loop">
+  <div class="inner">
+    <div class="eyebrow">01 · The loop</div>
+    <h1 class="slide-title">The model reprocesses an expanding input</h1>
+    <div class="entry-label">stable prefix</div>
+    <div class="prefix-bar">
+      <div class="prefix-seg static">tool<br>definitions</div><div class="prefix-seg static">system<br>prompt</div><div class="prefix-seg static">user<br>task</div><div class="prefix-seg grow">tool call · result · tool call · result · …</div>
+    </div>
+    <div class="cols" style="margin-top:28px">
+      <div class="panel"><h3>Context window</h3><p>The complete input and generated output must fit within the model’s token limit. Longer histories cost more and can make relevant details harder to retrieve.</p></div>
+      <div class="panel"><h3>Prompt-prefix reuse</h3><p>Providers may reuse computation for an unchanged prefix. Appending new records preserves it; changing earlier content can reduce the reusable portion.</p></div>
+    </div>
+    <div class="source-note">Exact matching, cache lifetimes and invalidation rules are provider- and model-specific.</div>
+  </div>
+</section>
+
+<!-- 14 · FEEDBACK -->
+<section class="slide" data-sec="Feedback">
+  <div class="inner">
+    <div class="eyebrow">02 · Feedback</div>
+    <h1 class="slide-title">Tests and compilers return evidence the loop can use</h1>
+    <div class="cols">
+      <div class="panel"><div class="entry-label">software task</div><h3>Code change → test result → retry</h3><p>A failing assertion identifies a concrete condition. The loop can inspect it, modify the code and rerun the same check.</p><div class="note" style="margin-top:18px">Fast · machine-readable · repeatable</div></div>
+      <div class="panel"><div class="entry-label">market interpretation</div><h3>Retrieve sources → assemble evidence → judge</h3><p>The loop can collect facts and citations. Whether those facts support the conclusion often still requires judgement.</p><div class="note" style="margin-top:18px">Evidence-rich · less objective · higher review need</div></div>
+    </div>
+    <p class="lede" style="margin-top:24px">The environment determines which mistakes the loop can detect and correct.</p>
+  </div>
+</section>
+
+<!-- 15 · METR -->
+<section class="slide metr-slide" data-sec="Feedback">
+  <div class="inner inner--wide">
+    <div class="eyebrow">02 · Feedback — measured capability</div>
+    <h1 class="slide-title">Newer agents complete longer software tasks in METR’s benchmark</h1>
+    <div class="metr-wrap">
+      <div><img src="data:image/png;base64,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" alt="METR chart showing 50 percent task-completion time horizon increasing across model releases"><div class="source-note">Source: METR, “Measuring AI Ability to Complete Long Tasks”, 19 Mar 2025 · CC BY 4.0</div></div>
+      <div class="metr-explain">
+        <div class="entry-label">How to read “30 minutes at 50%”</div>
+        <div class="stat-big" style="font-size:48px">30 min</div>
+        <p>Take software tasks estimated to require a skilled human about 30 minutes. At this horizon, the agent completes roughly half of them successfully.</p>
+        <div class="note"><strong>Duration:</strong> estimated human completion time.<br><strong>50%:</strong> the benchmark success threshold used to define the horizon.</div>
+        <p class="metr-trend">Across the historical data, this 50% horizon doubled roughly every seven months.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 · MULTI-AGENT LANDING -->
+<section class="slide section-landing" data-sec="Multi-agent">
+  <div class="inner">
+    <div class="section-number">03</div>
+    <div class="eyebrow">Multi-agent coordination</div>
+    <h1 class="section-title">Coordinating several agent loops</h1>
+    <p class="section-lede">A lead assigns separate investigations to workers with their own transcripts, then combines the reports.</p>
+    <div class="section-sequence" aria-label="Multi-agent sequence"><span>lead</span><b>→</b><span>separate workers</span><b>→</b><span>reports</span><b>→</b><span>synthesis</span></div>
+  </div>
+</section>
+
+<!-- 17 · CONTEXT PRESSURE -->
+<section class="slide" data-sec="Multi-agent">
+  <div class="inner">
+    <div class="eyebrow">03 · Multi-agent</div>
+    <h1 class="slide-title">Three investigations compete for one context window</h1>
+    <div class="diagram-card">
+      <svg viewBox="0 0 820 220" style="width:100%;height:220px">
+        <text class="d-label" x="80" y="42">NEWS</text><rect x="150" y="24" width="530" height="30" rx="5" fill="#E3DACC"/>
+        <text class="d-label" x="80" y="102">PORTFOLIO</text><rect x="150" y="84" width="390" height="30" rx="5" fill="#E3DACC"/>
+        <text class="d-label" x="80" y="162">CALENDAR</text><rect x="150" y="144" width="220" height="30" rx="5" fill="#E3DACC"/>
+        <line x1="708" y1="18" x2="708" y2="184" stroke="#D97757" stroke-width="2"/><text class="d-label" x="716" y="108">CONTEXT LIMIT</text>
+        <text class="d-label" x="150" y="210">SEARCHES, TOOL CALLS AND RESULTS ACCUMULATE TOGETHER</text>
+      </svg>
+    </div>
+    <ul class="highlights" style="margin-top:20px"><li>Independent searches can run in parallel.</li><li>Separate contexts prevent unrelated traces from filling the same transcript.</li><li>The lead needs a compact handoff from each worker.</li></ul>
+  </div>
+</section>
+
+<!-- 18 · LEAD WORKERS -->
+<section class="slide" data-sec="Multi-agent">
+  <div class="inner">
+    <div class="eyebrow">03 · Multi-agent</div>
+    <h1 class="slide-title">One lead receives final reports from separate workers</h1>
+    <div class="diagram-card" style="padding:18px 26px">
+      <svg viewBox="0 0 720 264" style="width:100%;height:330px">
+        <defs><marker id="aGray" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#D1CFC5"/></marker><marker id="aClay" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#D97757"/></marker></defs>
+        <rect class="d-box" x="270" y="14" width="180" height="62" rx="10"/><text class="d-label-dark" x="360" y="42" text-anchor="middle">lead context</text><text class="d-label" x="360" y="60" text-anchor="middle">receives final reports</text>
+        <line x1="330" y1="76" x2="130" y2="155" class="d-line" marker-end="url(#aGray)"/><line x1="360" y1="76" x2="360" y2="155" class="d-line" marker-end="url(#aGray)"/><line x1="390" y1="76" x2="590" y2="155" class="d-line" marker-end="url(#aGray)"/>
+        <line x1="150" y1="155" x2="345" y2="78" stroke="#D97757" stroke-width="1.7" marker-end="url(#aClay)"/><line x1="375" y1="155" x2="375" y2="80" stroke="#D97757" stroke-width="1.7" marker-end="url(#aClay)"/><line x1="570" y1="155" x2="390" y2="78" stroke="#D97757" stroke-width="1.7" marker-end="url(#aClay)"/>
+        <rect class="d-box" x="40" y="156" width="180" height="66" rx="10"/><rect class="d-box" x="270" y="156" width="180" height="66" rx="10"/><rect class="d-box" x="500" y="156" width="180" height="66" rx="10"/>
+        <text class="d-label-dark" x="130" y="184" text-anchor="middle">news worker</text><text class="d-label" x="130" y="202" text-anchor="middle">local trace + sources</text>
+        <text class="d-label-dark" x="360" y="184" text-anchor="middle">portfolio worker</text><text class="d-label" x="360" y="202" text-anchor="middle">local trace + sources</text>
+        <text class="d-label-dark" x="590" y="184" text-anchor="middle">calendar worker</text><text class="d-label" x="590" y="202" text-anchor="middle">local trace + sources</text>
+        <text class="d-label" x="360" y="250" text-anchor="middle">GREY: TASK · CLAY: FINAL REPORT WITH SOURCE REFERENCES</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- 19 · MULTI WIDGET -->
+<section class="slide" data-sec="Multi-agent">
+  <div class="inner inner--wide">
+    <div class="eyebrow" style="margin-bottom:10px">03 · Multi-agent — watch both versions run</div>
+    <div class="widget" id="w2">
+      <div class="widget-bar"><span class="auto-pill">Fictional scenario · illustrative data</span><div class="widget-controls"><div class="seg"><button id="w2-mode-clean" class="on">A · lead + isolated workers</button><button id="w2-mode-naive">B · two writers, one draft</button></div><button class="btn btn-secondary" id="w2-reset">Reset</button><button class="btn btn-primary" id="w2-run">Run</button></div></div>
+      <div class="w2-watch" id="w2-watch"></div>
+      <div class="w2-orch"><div class="entry-label" id="w2-orch-label">lead context · receives final worker reports only</div><div id="w2-orch-feed"><div class="w2-orch-line" style="color:var(--gray-500)">Task: produce a research-team briefing. Press Run.</div></div><div class="w2-inbox" id="w2-inbox"></div></div>
+      <div class="w2-draft" id="w2-draft"><div class="entry-label">shared draft · both workers write here at the same time</div><div id="w2-draft-feed"></div></div>
+      <div class="w2-boundary">private worker contexts · raw searches and tool results stay with the worker</div>
+      <div class="w2-workers"><div class="w2-worker" id="w2-wk-0"><h4>worker · news</h4><div class="w2-feed"></div><div class="w2-meter"><i></i></div><div class="w2-meter-cap">own context: 0 tokens</div></div><div class="w2-worker" id="w2-wk-1"><h4>worker · portfolio</h4><div class="w2-feed"></div><div class="w2-meter"><i></i></div><div class="w2-meter-cap">own context: 0 tokens</div></div><div class="w2-worker" id="w2-wk-2"><h4>worker · calendar</h4><div class="w2-feed"></div><div class="w2-meter"><i></i></div><div class="w2-meter-cap">own context: 0 tokens</div></div></div>
+      <div class="w2-out"><div class="entry-label">the briefing delivered to the team</div><div id="w2-out-feed"><div class="w2-brief" style="color:var(--gray-500)">—</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 20 · EVIDENCE -->
+<section class="slide" data-sec="Multi-agent">
+  <div class="inner">
+    <div class="eyebrow">03 · Multi-agent — evidence and cost</div>
+    <h1 class="slide-title">Anthropic’s research system improved its internal evaluation and used more tokens</h1>
+    <div class="cols-3">
+      <div class="evidence-card"><div class="stat-big">+90.2%</div><div class="stat-label">Improvement over a single agent on Anthropic’s internal research evaluation.</div><div class="source-note">Anthropic engineering write-up · vendor evaluation · 2025</div></div>
+      <div class="evidence-card"><div class="stat-big">~15×</div><div class="stat-label">Tokens used by the multi-agent research system versus normal chat; agents generally used ~4×.</div><div class="source-note">Same Anthropic write-up</div></div>
+      <div class="evidence-card"><div class="stat-big">14</div><div class="stat-label">Recurring multi-agent failure modes catalogued across design, coordination and verification.</div><div class="source-note">MAST · 1,600+ traces · 7 frameworks · arXiv v3</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 21 · TWO QUESTIONS -->
+<section class="slide" data-sec="In practice">
+  <div class="inner">
+    <div class="eyebrow">04 · In practice</div>
+    <h1 class="slide-title">Two questions determine the control boundary</h1>
+    <div class="cols">
+      <div class="panel"><div class="stat-big" style="font-size:44px">1</div><h3>What evidence can check the result?</h3><p>A test, reconciliation service, independent source or person may provide the checker.</p><p class="muted" style="margin-top:15px">This determines whether the loop can detect and correct errors.</p></div>
+      <div class="panel"><div class="stat-big" style="font-size:44px">2</div><h3>What happens if the action is wrong?</h3><p>Consider reversibility, financial impact, regulation and the time available to intervene.</p><p class="muted" style="margin-top:15px">This determines permissions, approvals and deterministic limits.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 22 · CONTROL TABLE -->
+<section class="slide" data-sec="In practice">
+  <div class="inner">
+    <div class="eyebrow">04 · In practice</div>
+    <h1 class="slide-title">The surrounding system sets the level of autonomy</h1>
+    <div class="control-matrix">
+      <div class="control-row control-head"><div>Workflow</div><div>What checks it?</div><div>If it is wrong</div><div>Boundary</div></div>
+      <div class="control-row"><div><strong>Refactor code</strong></div><div>Tests and compiler</div><div>Revert the branch</div><div class="control-boundary good">Agent can complete</div></div>
+      <div class="control-row"><div><strong>Draft a customer update</strong></div><div>Facts are checkable; wording is judged</div><div>Customer impact</div><div class="control-boundary caution">Person reviews and sends</div></div>
+      <div class="control-row"><div><strong>Execute a payment</strong></div><div>Authorisation checks and execution receipt</div><div>Financial and regulatory impact</div><div class="control-boundary danger">Policy controls and approval</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 23 · DEV QUANT -->
+<section class="slide" data-sec="In practice">
+  <div class="inner">
+    <div class="eyebrow">04 · In practice</div>
+    <h1 class="slide-title">Developer and quant workflows offer useful verifiers</h1>
+    <div class="cols">
+      <div class="panel"><h3>Code and backtest changes</h3><p>Refactors, migrations, test generation and backtest plumbing can run against regression suites and known invariants.</p><div class="entry-label" style="margin-top:18px">verifier</div><p>Tests, compilation, benchmark outputs and invariant checks.</p></div>
+      <div class="panel"><h3>Data-pipeline investigations</h3><p>The agent can inspect trades, compare snapshots and read job logs before proposing a remediation.</p><div class="entry-label" style="margin-top:18px">boundary</div><p>Read operations run directly; state-changing writes wait for approval.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 24 · INFO -->
+<section class="slide" data-sec="In practice">
+  <div class="inner">
+    <div class="eyebrow">04 · In practice</div>
+    <h1 class="slide-title">Information workflows need evidence attached to the output</h1>
+    <div class="cols">
+      <div class="panel"><h3>Research briefing</h3><p><strong>Retrieve:</strong> overnight news, portfolio and calendar.</p><p><strong>Produce:</strong> a concise team briefing with source links.</p><p><strong>Review:</strong> material claims and audience relevance.</p></div>
+      <div class="panel"><h3>Earnings and research digestion</h3><p><strong>Retrieve:</strong> transcripts, estimates and prior guidance.</p><p><strong>Produce:</strong> surprises, changes and cited excerpts.</p><p><strong>Review:</strong> interpretation and analytical relevance.</p></div>
+    </div>
+    <div class="note" style="margin-top:22px">The agent compresses the information. A person remains responsible for the judgement.</div>
+  </div>
+</section>
+
+<!-- 25 · FAILURE MODES -->
+<section class="slide" data-sec="Evaluation">
+  <div class="inner">
+    <div class="eyebrow">05 · Evaluation</div>
+    <h1 class="slide-title">Three failure modes recur across agent systems</h1>
+    <div class="cols-3">
+      <div class="evidence-card"><div class="stat-big">0.9<sup style="font-size:.45em">10</sup> ≈ 35%</div><div class="stat-label"><strong>Error accumulation:</strong> a long sequence creates more opportunities for an unchecked mistake.</div><div class="source-note">Illustrative calculation, not empirical evidence</div></div>
+      <div class="evidence-card"><div class="stat-big">a ≠ a</div><div class="stat-label"><strong>Run-to-run variation:</strong> the same input can produce a different sequence of choices.</div></div>
+      <div class="evidence-card"><div class="stat-big">“…”</div><div class="stat-label"><strong>Untrusted external content:</strong> retrieved material can attempt to redirect the agent or trigger unsafe actions.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 26 · EVALUATION -->
+<section class="slide" data-sec="Evaluation">
+  <div class="inner inner--wide">
+    <div class="eyebrow">05 · Evaluation</div>
+    <h1 class="slide-title">Evaluate repeated runs under normal and broken conditions</h1>
+    <div class="cols">
+      <div class="panel"><h3>Measure the distribution</h3><ul><li>Task success and forbidden-action rates</li><li>Human interventions per run</li><li>Tool calls and total tokens</li><li>Latency and cost at p50 / p95</li><li>Evidence and citation correctness</li></ul></div>
+      <div class="panel"><h3>Break the environment deliberately</h3><ul><li>Missing, malformed or unavailable tools</li><li>Stale and duplicated data</li><li>Long transcripts</li><li>Hostile text in retrieved sources</li><li>Approval denied or task cancelled</li></ul></div>
+    </div>
+    <div class="note" style="margin-top:20px"><strong>An agent demo is one sample from a distribution.</strong></div>
+  </div>
+</section>
+
+<!-- 27 · META HARNESS -->
+<section class="slide" data-sec="Emerging research">
+  <div class="inner inner--wide">
+    <div class="eyebrow">06 · Emerging research</div>
+    <h1 class="slide-title">A second loop can search for a better harness</h1>
+    <div class="outer-loop">
+      <div class="outer-row"><div class="outer-node">inspect traces + scores</div><span class="outer-arrow">→</span><div class="outer-node">propose harness change</div><span class="outer-arrow">→</span><div class="outer-node">run held-out evaluations</div><span class="outer-arrow">→</span><div class="outer-node">keep or reject</div><span class="outer-arrow">↺</span></div>
+      <div class="inner-agent"><h3>Task-specific agent harness</h3><p>system prompt · tools · state construction · parsers · retries · dispatch logic</p></div>
+    </div>
+    <p class="lede" style="margin-top:20px">Meta-Harness is one recent research system that searches over the code controlling what an LLM stores, retrieves and sees.</p>
+    <div class="source-note">Lee et al., “Meta-Harness: End-to-End Optimization of Model Harnesses”, arXiv:2603.28052, 2026</div>
+  </div>
+</section>
+
+<!-- 28 · RSI -->
+<section class="slide" data-sec="Emerging research">
+  <div class="inner inner--wide">
+    <div class="eyebrow">06 · Emerging research</div>
+    <h1 class="slide-title">Self-improvement research targets several layers of the system</h1>
+    <div class="ladder">
+      <div class="ladder-step"><h3>Output refinement</h3><p>Revise the current answer.</p></div>
+      <div class="ladder-step"><h3>Memory and harness</h3><p>Change stored state, prompts or tools.</p></div>
+      <div class="ladder-step"><h3>Agent code</h3><p>Search over workflows and scaffolds.</p></div>
+      <div class="ladder-step"><h3>Model weights</h3><p>Train parameters from task feedback.</p></div>
+      <div class="ladder-step"><h3>Research loop</h3><p>Use improved systems to produce further improvements.</p></div>
+    </div>
+    <div class="note" style="margin-top:20px">Current work demonstrates bounded forms under benchmarks and controls. Open-ended recursive self-improvement remains a research problem.</div>
+  </div>
+</section>
+
+<!-- 29 · CLOSE -->
+<section class="slide" data-sec="Close">
+  <div class="inner qa">
+    <div class="eyebrow">Closing synthesis</div>
+    <h1 class="slide-title">Four answers to take away</h1>
+    <p class="take-q"><span class="n">1</span>What is an LLM agent?<span class="a">An LLM operating inside a software loop with tools.</span></p>
+    <p class="take-q"><span class="n">2</span>How does it continue?<span class="a">The harness records tool calls and results in the transcript.</span></p>
+    <p class="take-q"><span class="n">3</span>Why multiple agents?<span class="a">Separate contexts support parallel work and introduce lossy handoffs.</span></p>
+    <p class="take-q"><span class="n">4</span>How should we use them?<span class="a">Attach verifiers, repeat evaluations and enforce limits in code.</span></p>
+    <div class="public-note" style="margin-top:26px">Built and written by Max Khor · <a href="https://maxkskhor.github.io" style="color:inherit">maxkskhor.github.io</a> · a personal educational project · all examples fictional · not affiliated with or endorsed by any employer</div>
+  </div>
+</section>
+
+<!-- 30 · OPTIONAL MARKER -->
+<section class="slide slide--marker" data-sec="Optional">
+  <div class="inner"><div class="marker-num">+</div><div class="marker-title">Optional deep dives</div><div class="marker-sub">Architecture, caching and audience exercises</div></div>
+</section>
+
+<!-- 31 · FIXED VS AGENT -->
+<section class="slide" data-sec="Optional">
+  <div class="inner">
+    <div class="eyebrow">Optional · architecture choice</div><h1 class="slide-title">When do you need an agent at all?</h1>
+    <div class="cols"><div class="panel"><h3>Fixed workflow</h3><ul><li>Application code chooses the next step.</li><li>The model performs bounded transformations.</li><li>Path, cost and failure points are easier to predict.</li></ul></div><div class="panel"><h3>Agent loop</h3><ul><li>The LLM selects a next step from what it discovers.</li><li>Useful when the path cannot be fixed in advance.</li><li>Cost and outcomes vary between runs.</li></ul></div></div>
+    <div class="note" style="margin-top:22px"><strong>If the path is known, code it directly.</strong> Use an agent when new evidence changes what should happen next.</div>
+  </div>
+</section>
+
+<!-- 32 · DESIGN EXERCISE -->
+<section class="slide" data-sec="Optional">
+  <div class="inner">
+    <div class="eyebrow">Optional · audience exercise</div><h1 class="slide-title">Design a fictional exposure-investigation workflow</h1>
+    <div class="diagram-card" style="padding:18px 24px"><div class="entry-label">available operations</div><div class="msg-row"><span class="msg-chip">query positions</span><span class="msg-chip">read trades</span><span class="msg-chip">compare snapshots</span><span class="msg-chip">read job logs</span><span class="msg-chip">delete duplicate rows</span><span class="msg-chip">amend risk report</span></div></div>
+    <div class="cols-3" style="margin-top:18px"><div class="panel"><h3>Which operations become tools?</h3></div><div class="panel"><h3>Which actions require approval?</h3></div><div class="panel"><h3>What result verifies the fix?</h3></div></div>
+    <div class="widget-bar" style="border:var(--border);border-radius:var(--r-sm);padding:10px 14px;margin-top:16px"><span class="auto-pill">discuss first</span><button class="btn btn-primary" id="design-reveal-btn">Show one design</button></div>
+    <div class="hook-reveal" id="design-reveal" style="margin:12px 0 0"><strong>One design:</strong> read and comparison tools run directly. Deletes and report amendments wait for approval. Success requires 1,206 unique position IDs and a reconciled risk report.</div>
+  </div>
+</section>
+
+<!-- 33 · CACHE -->
+<section class="slide" data-sec="Optional">
+  <div class="inner">
+    <div class="eyebrow">Optional · serving detail</div><h1 class="slide-title">Why append-only transcripts can be cheaper</h1>
+    <div class="cols"><div class="panel"><h3>Generation-time KV cache</h3><p>While generating one response, the inference engine stores key/value representations for preceding tokens so it does not recompute the full sequence for every new token.</p></div><div class="panel"><h3>Cross-request prompt cache</h3><p>Across agent-loop calls, a provider may reuse computation for an unchanged prompt prefix. Tools, system content and earlier messages must match the provider’s rules.</p></div></div>
+    <div class="prefix-bar" style="margin-top:24px"><div class="prefix-seg static">tools</div><div class="prefix-seg static">system</div><div class="prefix-seg static">task</div><div class="prefix-seg grow">append new call + result</div></div>
+    <div class="note" style="margin-top:18px">Preserve a stable prefix when practical. Compact deliberately when context pressure or relevance justifies the rewrite.</div>
+  </div>
+</section>
+
+<!-- 34 · REPORT SCHEMA -->
+<section class="slide" data-sec="Optional">
+  <div class="inner">
+    <div class="eyebrow">Optional · audience exercise</div><h1 class="slide-title">What should a worker report preserve?</h1>
+    <div class="take-grid"><div class="take-item"><div class="num">01</div><h3>Conclusion</h3><p>The worker’s answer to its assigned subtask.</p></div><div class="take-item"><div class="num">02</div><h3>Material evidence</h3><p>Facts and qualifiers that could change the conclusion.</p></div><div class="take-item"><div class="num">03</div><h3>Source route</h3><p>Citations, document IDs or retrieval handles.</p></div><div class="take-item"><div class="num">04</div><h3>Uncertainty</h3><p>Open questions, confidence and conflicting evidence.</p></div></div>
+  </div>
+</section>
+
+<!-- 35 · READING PRACTICAL -->
+<section class="slide" data-sec="Reading">
+  <div class="inner">
+    <div class="eyebrow">Further reading</div><h1 class="slide-title">Practical agent engineering</h1>
+    <div class="read-item compact"><h3>Building effective agents — Anthropic, 2024</h3><p>Workflows, agents and common implementation patterns.</p><a class="url" href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener noreferrer">anthropic.com/engineering/building-effective-agents</a></div>
+    <div class="read-item compact"><h3>Effective context engineering for AI agents — Anthropic, 2025</h3><p>State, retrieval, compaction and long-running tasks.</p><a class="url" href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener noreferrer">anthropic.com/engineering/effective-context-engineering-for-ai-agents</a></div>
+    <div class="read-item compact"><h3>How we built our multi-agent research system — Anthropic, 2025</h3><p>Lead-worker architecture, evaluation results and token costs.</p><a class="url" href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener noreferrer">anthropic.com/engineering/multi-agent-research-system</a></div>
+  </div>
+</section>
+
+<!-- 36 · READING TECHNICAL -->
+<section class="slide" data-sec="Reading">
+  <div class="inner inner--wide">
+    <div class="eyebrow">Further reading</div><h1 class="slide-title">Systems and emerging research</h1>
+    <div class="read-cols">
+      <div class="read-col"><h2>Context and caching</h2><div class="read-item compact"><h3>Prompt caching — OpenAI</h3><a class="url" href="https://developers.openai.com/api/docs/guides/prompt-caching" target="_blank" rel="noopener noreferrer">developers.openai.com/api/docs/guides/prompt-caching</a></div><div class="read-item compact"><h3>Prompt caching — Anthropic</h3><a class="url" href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener noreferrer">platform.claude.com/docs/en/build-with-claude/prompt-caching</a></div><div class="read-item compact"><h3>PagedAttention — Kwon et al., 2023</h3><a class="url" href="https://arxiv.org/abs/2309.06180" target="_blank" rel="noopener noreferrer">arxiv.org/abs/2309.06180</a></div></div>
+      <div class="read-col"><h2>Harnesses and self-improvement</h2><div class="read-item compact"><h3>Meta-Harness — Lee et al., 2026</h3><a class="url" href="https://arxiv.org/abs/2603.28052" target="_blank" rel="noopener noreferrer">arxiv.org/abs/2603.28052</a></div><div class="read-item compact"><h3>Automated Design of Agentic Systems — Hu et al., 2024</h3><a class="url" href="https://arxiv.org/abs/2408.08435" target="_blank" rel="noopener noreferrer">arxiv.org/abs/2408.08435</a></div><div class="read-item compact"><h3>Darwin Gödel Machine — Zhang et al., 2025</h3><a class="url" href="https://arxiv.org/abs/2505.22954" target="_blank" rel="noopener noreferrer">arxiv.org/abs/2505.22954</a></div></div>
+    </div>
+  </div>
+</section>
+
+<footer class="hud"><span id="hud-sec"></span><span id="hud-count"></span></footer>
+<button class="fsbtn" id="fullscreen-btn" title="Toggle page fullscreen (F)">Full screen · F</button>
+
+<script>
+/* ============================================================
+   Deck navigation and shared timers
+   ============================================================ */
+const slides = Array.from(document.querySelectorAll('.slide'));
+let cur = 0;
+const timers = new Set();
+
+function later(fn, ms) {
+  const t = setTimeout(() => { timers.delete(t); fn(); }, ms);
+  timers.add(t);
+  return t;
+}
+function stopAllSims() {
+  timers.forEach(clearTimeout);
+  timers.clear();
+  if (typeof w1StopAuto === 'function') w1StopAuto();
+  const w2run = document.getElementById('w2-run');
+  if (w2run) w2run.disabled = false;
+}
+function show(n) {
+  n = Math.max(0, Math.min(slides.length - 1, n));
+  slides[cur].classList.remove('on');
+  cur = n;
+  slides[cur].classList.add('on');
+  document.getElementById('hud-sec').textContent = slides[cur].dataset.sec || '';
+  document.getElementById('hud-count').textContent = String(cur + 1).padStart(2, '0') + ' / ' + slides.length;
+  history.replaceState(null, '', cur === 0 ? location.pathname : '#' + (cur + 1));
+  const curSec = slides[cur].dataset.sec || 'Title';
+  document.querySelectorAll('.rail-dash').forEach(b => b.classList.toggle('on', b.dataset.sec === curSec));
+  stopAllSims();
+}
+
+const rail = document.createElement('nav');
+rail.className = 'rail';
+rail.setAttribute('aria-label', 'sections');
+let railLast = null;
+slides.forEach((s, i) => {
+  const sec = s.dataset.sec || 'Title';
+  if (sec === railLast) return;
+  railLast = sec;
+  const b = document.createElement('button');
+  b.className = 'rail-dash';
+  b.title = sec;
+  b.dataset.sec = sec;
+  b.addEventListener('click', () => { show(i); b.blur(); });
+  rail.appendChild(b);
+});
+document.body.appendChild(rail);
+
+async function toggleFullscreen() {
+  try {
+    if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+    else await document.exitFullscreen();
+  } catch (err) {
+    console.warn('Fullscreen request was not available:', err);
+  }
+}
+document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.target.tagName === 'BUTTON' && e.key === ' ') return;
+  if (e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFullscreen(); return; }
+  if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+  else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  else if (e.key === 'Home') show(0);
+  else if (e.key === 'End') show(slides.length - 1);
+});
+
+/* ============================================================
+   Progressive debrief annotation
+   ============================================================ */
+let debriefI = 0;
+const debriefRows = Array.from(document.querySelectorAll('[data-anno]'));
+const debriefNext = document.getElementById('debrief-next');
+function debriefStep() {
+  if (debriefI >= debriefRows.length) return;
+  debriefRows.forEach((row, i) => {
+    row.classList.toggle('on', i === debriefI);
+    if (i <= debriefI) row.classList.add('seen');
+  });
+  debriefI++;
+  if (debriefI === debriefRows.length) { debriefNext.textContent = 'Complete'; debriefNext.disabled = true; }
+}
+function debriefReset() {
+  debriefI = 0;
+  debriefRows.forEach(row => row.classList.remove('on', 'seen'));
+  debriefNext.textContent = 'Next';
+  debriefNext.disabled = false;
+}
+debriefNext.addEventListener('click', debriefStep);
+document.getElementById('debrief-reset').addEventListener('click', debriefReset);
+
+/* optional audience answer */
+const designReveal = document.getElementById('design-reveal');
+const designRevealBtn = document.getElementById('design-reveal-btn');
+designRevealBtn.addEventListener('click', () => {
+  designReveal.classList.toggle('show');
+  designRevealBtn.textContent = designReveal.classList.contains('show') ? 'Hide' : 'Show one design';
+});
+
+
+/* ============================================================
+   Widget 1 — loop visualizer (fully scripted)
+   ============================================================ */
+const W1_FIN_STEPS = [
+  { think: "Exposure prints at 210m vs 105m — almost exactly double. Doubling smells like duplication, not trading. First check: did anything actually trade overnight?",
+    act: 'query_trades(portfolio="DEMO-7", since="D-1 18:00")',
+    obs: "14 trades · gross notional 8.2m · largest ticket 1.4m — nothing near 100m.",
+    tok: 545 },
+  { think: "No trades explain a 100m move. Compare raw row counts between yesterday's and today's position snapshots.",
+    act: 'run_query("SELECT snap_date, count(*) FROM demo_positions WHERE portfolio=\'DEMO-7\' GROUP BY snap_date")',
+    obs: "D-1: 1,206 rows · D-0: 2,412 rows — exactly 2×.",
+    tok: 655 },
+  { think: "Exactly double the rows. Are the extras new positions, or copies?",
+    act: 'diff_snapshots(portfolio="DEMO-7", from="D-1", to="D-0")',
+    obs: "Every record_id appears exactly twice in D-0. Field-identical duplicates — only load_ts differs: 01:10 and 01:20.",
+    tok: 980 },
+  { think: "Pure duplication, two load timestamps. The loader wrote the same batch twice. Pull last night's job history.",
+    act: 'read_job_log(job="demo_snapshot_load", date="D-0")',
+    obs: "01:00 run#1 START → 01:10 TIMEOUT after 600s (commit status unknown) · 01:11 run#2 START (auto-retry) → 01:20 SUCCESS.",
+    tok: 1340 },
+  { think: "Run #1 committed before its client timed out; the auto-retry loaded the batch again. Is there any guard against loading twice?",
+    act: 'read_job_config(job="demo_snapshot_load")',
+    obs: "retry_on_timeout: true · idempotency_key: none · dedupe_check: none.",
+    tok: 1520 },
+  { think: "Root cause found: timeout → blind retry → double load, no guard. The fix changes live data — I can only propose it.",
+    act: 'propose_fix(delete="rows with load_ts 01:10", change="add idempotency key to demo_snapshot_load")',
+    obs: "Proposal queued — PENDING HUMAN APPROVAL. No live data modified.",
+    tok: 1790, gated: true },
+  { answer: "Not a real move. The overnight snapshot load ran twice — run #1 committed but timed out client-side, and the auto-retry reloaded the same batch. Every record in demo portfolio is duplicated (1,206 → 2,412 rows), doubling reported exposure to 210m. Proposed fix, awaiting approval: remove the 01:10 rows and add an idempotency key to the loader.",
+    tok: 2040 }
+];
+
+const W1_CODE_STEPS = [
+  { think: "CI went red overnight. First, reproduce — run just the failing test.",
+    act: 'bash("pytest tests/test_pnl_attribution.py -x")',
+    obs: "FAILED — AssertionError: expected carry=812.50, got 0.0 (test line 214).",
+    tok: 560 },
+  { think: "Carry comes out as zero. Read the function that computes it.",
+    act: 'read_file("pnl/attribution.py", lines="120-180")',
+    obs: "def carry(position, curve): days = _day_count(position) … return accrual * days / 360",
+    tok: 730 },
+  { think: "The logic looks right. When did this file last change?",
+    act: 'bash("git log --oneline -5 -- pnl/attribution.py")',
+    obs: "a41f2c9 (yesterday) refactor: extract _day_count helper · 3 older commits",
+    tok: 900 },
+  { think: "Yesterday's refactor is the suspect. Show exactly what it changed.",
+    act: 'bash("git show a41f2c9 -- pnl/attribution.py")',
+    obs: "- days = (end - start).days + 1   |   + days = (end - start).days   ← the helper drops the +1",
+    tok: 1150 },
+  { think: "Off-by-one: without the inclusive +1, short holding periods round to zero days, so carry is zero. Fix it — this is a branch, fully reversible.",
+    act: 'edit_file("pnl/attribution.py", "days = (end - start).days", "days = (end - start).days + 1")',
+    obs: "edited — 1 replacement made.",
+    tok: 1310 },
+  { think: "Never trust an unverified fix. Rerun the whole test file.",
+    act: 'bash("pytest tests/test_pnl_attribution.py")',
+    obs: "14 passed in 3.2s.",
+    tok: 1460 },
+  { answer: "Fixed. Yesterday's refactor (a41f2c9) extracted _day_count and dropped the inclusive +1, zeroing carry for short holding periods. Restored it; all 14 tests pass. Notice no human was needed mid-loop — the failing test graded every attempt.",
+    tok: 1600 }
+];
+
+const W1_SCENARIOS = {
+  fin: {
+    task: '<strong>Task:</strong> this morning’s risk report shows demo portfolio’s exposure at <strong>210m</strong> vs <strong>105m</strong> yesterday, with no large trades overnight. Real move or data issue?',
+    steps: W1_FIN_STEPS,
+    notools: "A sudden doubling of reported exposure can arise from several factors: elevated market volatility, new large positions, valuation methodology changes, or upstream data-quality issues. I would recommend reviewing overnight trading activity, confirming the figures with the data owner, and checking recent system changes."
+  },
+  code: {
+    task: '<strong>Task:</strong> CI is red — <strong>test_pnl_attribution</strong> has been failing on main since last night. Find the cause and fix it. Tools: bash, read_file, edit_file.',
+    steps: W1_CODE_STEPS,
+    notools: "A failing P&L attribution test after recent changes usually points to a modified day-count or sign convention. I would suggest reviewing recent commits to the attribution module, checking the test's expected values, and adding a regression test once the cause is found."
+  }
+};
+let w1sc = 'fin';
+
+let w1i = 0, w1auto = null, w1messages = [];
+const w1feed = document.getElementById('w1-feed');
+const w1chips = document.getElementById('w1-chips');
+const w1tok = document.getElementById('w1-tok');
+const w1status = document.getElementById('w1-status');
+
+function w1Light(name) {
+  document.querySelectorAll('.w1-ln[data-ph]').forEach(ln =>
+    ln.classList.toggle('lit', ln.dataset.ph === name));
+  document.querySelectorAll('.w1-cycle span[data-cy]').forEach(s =>
+    s.classList.toggle('lit', s.dataset.cy === name));
+}
+function w1Entry(cls, label, text) {
+  const d = document.createElement('div');
+  d.className = 'entry';
+  d.innerHTML = '<div class="entry-label">' + label + '</div><div class="' + cls + '">' + text + '</div>';
+  w1feed.appendChild(d);
+  w1feed.scrollTop = w1feed.scrollHeight;
+}
+function w1RenderChips() {
+  w1chips.innerHTML = '';
+  let visible = w1messages;
+  if (w1messages.length > 7) {
+    visible = [
+      ...w1messages.slice(0, 2),
+      { text: (w1messages.length - 6) + ' earlier messages', summary: true },
+      ...w1messages.slice(-4)
+    ];
+  }
+  visible.forEach(m => {
+    const s = document.createElement('span');
+    s.className = 'msg-chip' + (m.asst ? ' is-asst' : '') + (m.sys ? ' is-sys' : '') + (m.summary ? ' is-summary' : '');
+    s.textContent = m.text;
+    w1chips.appendChild(s);
+  });
+}
+function w1Chip(text, asst) {
+  w1messages.push({ text, asst });
+  w1RenderChips();
+}
+
+function w1Step() {
+  if (!document.getElementById('w1-tools').checked) { w1NoTools(); return; }
+  const steps = W1_SCENARIOS[w1sc].steps;
+  if (w1i >= steps.length) return;
+  const s = steps[w1i];
+  const iter = w1i + 1;
+
+  if (s.answer) {
+    w1Light('think');
+    w1status.textContent = 'no tool call → loop exits';
+    later(() => {
+      w1Entry('entry-answer', 'answer · loop complete', s.answer);
+      w1Chip('assistant · answer', true);
+      w1tok.textContent = s.tok.toLocaleString();
+      w1Light('answer');
+      document.getElementById('w1-step').disabled = true;
+      w1StopAuto();
+    }, 500);
+  } else {
+    w1Light('think');
+    w1status.textContent = 'iteration ' + iter + ' — thinking';
+    w1Entry('entry-think', 'think · iteration ' + iter, s.think);
+    later(() => {
+      w1Light('act');
+      w1status.textContent = 'iteration ' + iter + ' — tool call written';
+      w1Entry('entry-act', 'act · tool call', s.act);
+      w1Chip('assistant', true);
+    }, 550);
+    later(() => {
+      w1Light('observe');
+      w1status.textContent = 'iteration ' + iter + ' — result appended';
+      w1Entry('entry-obs', 'observe · tool result' + (s.gated ? ' &middot; <span class="badge badge-warning" style="height:18px;font-size:10px">human gate</span>' : ''), s.obs);
+      w1Chip('tool result', false);
+      w1tok.textContent = s.tok.toLocaleString();
+    }, 1100);
+  }
+  w1i++;
+}
+
+function w1NoTools() {
+  if (w1i > 0) return;
+  w1i = 99;
+  w1Light('think');
+  w1status.textContent = 'no tools — one call, then done';
+  later(() => {
+    w1Entry('entry-answer', 'answer · after a single call', W1_SCENARIOS[w1sc].notools);
+    w1Entry('entry-think', 'note', '<em>Fluent. Plausible. Useless — the model has no way to look.</em>');
+    w1Chip('assistant · answer', true);
+    w1tok.textContent = '590';
+    w1Light(null);
+    document.getElementById('w1-step').disabled = true;
+    w1StopAuto();
+  }, 600);
+}
+
+function w1Reset() {
+  w1StopAuto();
+  w1i = 0;
+  w1feed.innerHTML = '';
+  document.getElementById('w1-task').innerHTML = W1_SCENARIOS[w1sc].task;
+  w1messages = [{ text:'system', sys:true }, { text:'user task', sys:true }];
+  w1RenderChips();
+  w1tok.textContent = '412';
+  w1status.textContent = 'ready — press Step';
+  w1Light(null);
+  document.getElementById('w1-step').disabled = false;
+}
+function w1SetScenario(sc) {
+  w1sc = sc;
+  document.getElementById('w1-sc-fin').classList.toggle('on', sc === 'fin');
+  document.getElementById('w1-sc-code').classList.toggle('on', sc === 'code');
+  w1Reset();
+}
+document.getElementById('w1-sc-fin').addEventListener('click', () => w1SetScenario('fin'));
+document.getElementById('w1-sc-code').addEventListener('click', () => w1SetScenario('code'));
+function w1StopAuto() {
+  if (w1auto) { clearInterval(w1auto); w1auto = null; }
+  const b = document.getElementById('w1-auto');
+  if (b) b.textContent = 'Auto';
+}
+document.getElementById('w1-step').addEventListener('click', w1Step);
+document.getElementById('w1-reset').addEventListener('click', w1Reset);
+document.getElementById('w1-tools').addEventListener('change', w1Reset);
+document.getElementById('w1-auto').addEventListener('click', () => {
+  if (w1auto) { w1StopAuto(); return; }
+  document.getElementById('w1-auto').textContent = 'Pause';
+  w1Step();
+  w1auto = setInterval(() => {
+    if (w1i >= W1_SCENARIOS[w1sc].steps.length) { w1StopAuto(); return; }
+    w1Step();
+  }, 2400);
+});
+
+/* ============================================================
+   Widget 2 — orchestration visualizer (fully scripted)
+   ============================================================ */
+let w2mode = 'clean';
+const w2orch = document.getElementById('w2-orch-feed');
+const w2out = document.getElementById('w2-out-feed');
+const w2draft = document.getElementById('w2-draft');
+const w2draftFeed = document.getElementById('w2-draft-feed');
+const w2watch = document.getElementById('w2-watch');
+const w2inbox = document.getElementById('w2-inbox');
+const w2orchLabel = document.getElementById('w2-orch-label');
+
+const W2_WATCH = {
+  clean: '<strong>What you’re watching:</strong> each worker keeps its searches, tool results and intermediate work in a private context. Only its final report is appended to the lead context.',
+  naive: '<strong>What you’re watching:</strong> the same job with no lead writer. Two workers make decisions directly in one shared draft.'
+};
+
+const W2_WORKERS = [
+  { lines: ["reading overnight wires (6 sources)…", "reading: Asia wrap · 2 central-bank speeches", "condensing 48k tokens → 310"],
+    tokens: 48000,
+    result: "Soft China PMI (48.9 vs 50.1 exp) set a cautious tone; oil +1.8% on supply headlines." },
+  { lines: ["querying a simulated dataset: portfolio snapshot…", "calculating overnight attribution", "condensing 22k tokens → 260"],
+    tokens: 22000,
+    result: "Demo portfolio is net long duration ≈4.2y equivalent, mostly EUR rates; overnight P&L −0.8m." },
+  { lines: ["fetching today's econ calendar…", "ranking events by relevance to the demo portfolio"],
+    tokens: 9000,
+    result: "US CPI 13:30 · 10y auction 18:00 · two central-bank speakers." }
+];
+
+function w2OrchLine(html) {
+  const d = document.createElement('div');
+  d.className = 'w2-orch-line';
+  d.innerHTML = html;
+  w2orch.appendChild(d);
+}
+function w2WkLine(i, text, dim) {
+  const d = document.createElement('div');
+  d.className = 'w2-line' + (dim ? ' dim' : '');
+  d.textContent = text;
+  document.querySelector('#w2-wk-' + i + ' .w2-feed').appendChild(d);
+}
+function w2WkResult(i, text) {
+  const d = document.createElement('div');
+  d.className = 'w2-result';
+  d.textContent = text;
+  document.querySelector('#w2-wk-' + i + ' .w2-feed').appendChild(d);
+}
+function w2Meter(i, tokens) {
+  const wk = document.getElementById('w2-wk-' + i);
+  wk.querySelector('.w2-meter i').style.width = Math.min(100, tokens / 500) + '%';
+  wk.querySelector('.w2-meter-cap').textContent = 'own context: ≈' + (tokens / 1000) + 'k tokens';
+}
+function w2Brief(html, cls) {
+  const d = document.createElement('div');
+  d.className = 'w2-brief' + (cls ? ' ' + cls : '');
+  d.innerHTML = html;
+  w2out.appendChild(d);
+}
+function w2DraftLine(author, text, clash) {
+  const d = document.createElement('div');
+  d.className = 'w2-draft-line' + (clash ? ' clash' : '');
+  d.innerHTML = '<b>' + author + ' ›</b> ' + text;
+  w2draftFeed.appendChild(d);
+}
+function w2Stats(html) {
+  const d = document.createElement('div');
+  d.className = 'w2-stats';
+  d.innerHTML = html;
+  w2out.appendChild(d);
+}
+function w2InboxReceive(i) {
+  const chip = document.getElementById('w2-inbox-' + i);
+  if (!chip) return;
+  chip.classList.add('received');
+  chip.textContent = ['news report · 310 tokens', 'portfolio report · 260 tokens', 'calendar report · ~300 tokens'][i];
+}
+
+function w2Reset() {
+  stopAllSims();
+  w2watch.innerHTML = W2_WATCH[w2mode];
+  w2orchLabel.textContent = w2mode === 'clean'
+    ? 'lead context · receives final worker reports only'
+    : 'control plane · no lead writer in this version';
+  w2orch.innerHTML = '<div class="w2-orch-line" style="color:var(--gray-500)">Task: produce a research-team briefing. Press Run.</div>';
+  w2inbox.innerHTML = w2mode === 'clean'
+    ? '<span class="w2-inbox-chip" id="w2-inbox-0">news report pending</span><span class="w2-inbox-chip" id="w2-inbox-1">portfolio report pending</span><span class="w2-inbox-chip" id="w2-inbox-2">calendar report pending</span>'
+    : '';
+  w2out.innerHTML = '<div class="w2-brief" style="color:var(--gray-500)">—</div>';
+  w2draftFeed.innerHTML = '';
+  w2draft.classList.remove('show');
+  for (let i = 0; i < 3; i++) {
+    const wk = document.getElementById('w2-wk-' + i);
+    wk.classList.remove('live');
+    wk.querySelector('.w2-feed').innerHTML = '';
+    wk.querySelector('.w2-meter i').style.width = '0%';
+    wk.querySelector('.w2-meter-cap').textContent = 'own context: 0 tokens';
+  }
+  document.getElementById('w2-run').disabled = false;
+}
+
+function w2RunClean() {
+  w2orch.innerHTML = ''; w2out.innerHTML = '';
+  w2OrchLine('<strong>Split the job:</strong> overnight news, portfolio and calendar — three read-only tasks in fresh contexts.');
+  const done = [];
+  W2_WORKERS.forEach((w, i) => {
+    later(() => {
+      document.getElementById('w2-wk-' + i).classList.add('live');
+      w2Meter(i, w.tokens);
+    }, 400 + i * 250);
+    w.lines.forEach((ln, j) => later(() => w2WkLine(i, ln), 800 + i * 250 + j * 700));
+    later(() => {
+      w2WkResult(i, w.result);
+      w2InboxReceive(i);
+      done.push(i);
+      if (done.length === 3) w2Compose();
+    }, 900 + i * 250 + w.lines.length * 700);
+  });
+}
+function w2Compose() {
+  later(() => w2OrchLine('<strong>Received three final reports</strong> — about 900 tokens total. No worker transcript or source document entered the lead context.'), 400);
+  later(() => {
+    w2Brief('<strong>Tone cautious:</strong> soft China PMI set the mood overnight; oil firmer on supply headlines.');
+    w2Brief('<strong>Demo portfolio:</strong> long EUR duration (≈4.2y equivalent); overnight P&L −0.8m, mostly carry.');
+    w2Brief('<strong>Watch 13:30 US CPI</strong> — the main event against a long-duration demo portfolio; 10y auction 18:00.');
+  }, 1100);
+  later(() => {
+    w2Stats('workers read <strong>≈79k tokens</strong>. the lead received <strong>≈900 tokens of reports</strong> and composed the briefing from those reports.');
+  }, 1700);
+}
+
+function w2RunNaive() {
+  w2orch.innerHTML = ''; w2out.innerHTML = '';
+  w2draft.classList.add('show');
+  w2OrchLine('<strong>No lead this time:</strong> the news worker and the portfolio worker both write the briefing, directly, at the same time.');
+  [0, 1].forEach(i => later(() => {
+    document.getElementById('w2-wk-' + i).classList.add('live');
+    w2Meter(i, W2_WORKERS[i].tokens);
+  }, 400 + i * 250));
+  later(() => w2WkLine(2, '— not used in this version —', true), 650);
+  later(() => w2WkLine(0, 'reading wires → writing into the draft…'), 800);
+  later(() => w2WkLine(1, 'reading simulated portfolio data → writing into the draft…'), 1050);
+  later(() => w2DraftLine('news', 'Overnight tone risk-off after soft China prints; futures offered.', true), 1600);
+  later(() => w2DraftLine('portfolio', 'Risk appetite firm overnight; futures bid — portfolio exposure stable.', true), 2600);
+  later(() => w2DraftLine('news', 'Open the briefing with the China PMI miss.'), 3400);
+  later(() => w2DraftLine('portfolio', 'Open the briefing with the CPI preview.'), 4100);
+  later(() => {
+    w2Brief('&ldquo;Overnight tone: <strong>risk-off, futures offered</strong>&hellip; risk appetite <strong>firm, futures bid</strong>.&rdquo;', 'clash');
+    w2Brief('Two opposite reads of the same night, in one briefing.', 'verdict');
+    w2Brief('Both workers wrote to the same artifact, but nobody owned the decision when their conclusions conflicted.');
+  }, 5000);
+  later(() => {
+    w2Stats('the failure is architectural: <strong>two writers made incompatible decisions and no owner reconciled them.</strong>');
+  }, 5800);
+}
+
+document.getElementById('w2-run').addEventListener('click', () => {
+  w2Reset();
+  document.getElementById('w2-run').disabled = true;
+  if (w2mode === 'clean') w2RunClean(); else w2RunNaive();
+  later(() => { document.getElementById('w2-run').disabled = false; }, 6400);
+});
+document.getElementById('w2-reset').addEventListener('click', w2Reset);
+document.getElementById('w2-mode-clean').addEventListener('click', () => {
+  w2mode = 'clean';
+  document.getElementById('w2-mode-clean').classList.add('on');
+  document.getElementById('w2-mode-naive').classList.remove('on');
+  w2Reset();
+});
+document.getElementById('w2-mode-naive').addEventListener('click', () => {
+  w2mode = 'naive';
+  document.getElementById('w2-mode-naive').classList.add('on');
+  document.getElementById('w2-mode-clean').classList.remove('on');
+  w2Reset();
+});
+w2watch.innerHTML = W2_WATCH.clean;
+
+
+/* boot */
+w1Reset();
+w2Reset();
+debriefReset();
+const fromHash = parseInt(location.hash.slice(1), 10);
+slides[0].classList.add('on');
+show(isNaN(fromHash) ? 0 : fromHash - 1);
+</script>
+</body>
+</html>
