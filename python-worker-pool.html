@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>From Blocking Queue to Worker Pool — Max Khor</title>
-<meta name="description" content="Build a small Python worker system from a synchronized queue: backpressure, task completion, graceful shutdown, error propagation, futures and an asyncio mapping.">
+<title>A Small Python Worker Pool, Explained by Execution — Max Khor</title>
+<meta name="description" content="Build a Python worker pool one invariant at a time: queue state, unfinished-task accounting, sentinel shutdown, error capture, backpressure, tests and futures.">
 <meta name="author" content="Max Khor">
 <link rel="canonical" href="https://maxkskhor.github.io/python-worker-pool.html">
 <meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#161310" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://maxkskhor.github.io/python-worker-pool.html">
-<meta property="og:title" content="From Blocking Queue to Worker Pool">
-<meta property="og:description" content="Backpressure, completion, shutdown and failures in a small Python worker system.">
+<meta property="og:title" content="A Small Python Worker Pool, Explained by Execution">
+<meta property="og:description" content="A worked tutorial built around queue state, worker timelines and a precise shutdown contract.">
 <meta property="og:image" content="https://maxkskhor.github.io/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%203E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%231a1712'/%3E%3Ctext%20x='16'%20y='23'%20font-family='Georgia,serif'%20font-size='21'%20font-weight='700'%20text-anchor='middle'%20fill='%23c96a4a'%3EM%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%231a1712'/%3E%3Ctext%20x='16'%20y='23'%20font-family='Georgia,serif'%20font-size='21'%20font-weight='700'%20text-anchor='middle'%20fill='%23c96a4a'%3EM%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..640;1,9..144,340..560&display=swap" rel="stylesheet">
@@ -23,14 +23,13 @@
   :root{
     --paper:#f6f3ec;--panel:#eee8dc;--ink:#1a1712;--muted:#615a4e;
     --faint:#8a8172;--rule:#d8d0c1;--accent:#9a3b2e;--code:#211e1a;
-    --code-ink:#f2eadf;--good:#41614c;--serif:"Fraunces","Iowan Old Style",Palatino,Georgia,serif;
+    --code-ink:#f2eadf;--serif:"Fraunces","Iowan Old Style",Palatino,Georgia,serif;
     --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
   }
   @media(prefers-color-scheme:dark){
     :root{--paper:#161310;--panel:#211c16;--ink:#efe8dc;--muted:#aea393;
-      --faint:#827767;--rule:#383127;--accent:#e39778;--code:#0d0c0a;
-      --code-ink:#eee7dc;--good:#9ac5a4}
+      --faint:#827767;--rule:#383127;--accent:#e39778;--code:#0d0c0a;--code-ink:#eee7dc}
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
@@ -38,23 +37,22 @@
     font-size:clamp(17px,1vw + 14px,19px);line-height:1.68;-webkit-font-smoothing:antialiased}
   a{color:var(--accent);text-underline-offset:.18em}
   code{font-family:var(--mono);font-size:.84em}
-  .page{width:min(100% - 2.5rem,780px);margin:0 auto;padding:2rem 0 5rem}
+  .page{width:min(100% - 2.5rem,800px);margin:0 auto;padding:2rem 0 5rem}
   .back{font-family:var(--sans);font-size:.74rem;font-weight:650;letter-spacing:.12em;
     text-transform:uppercase;text-decoration:none;color:var(--faint)}
   header{padding:clamp(3rem,9vw,6.5rem) 0 2.2rem;border-bottom:3px double var(--ink)}
   .eyebrow{font-family:var(--sans);font-size:.7rem;font-weight:650;letter-spacing:.18em;
     text-transform:uppercase;color:var(--accent);margin-bottom:1rem}
-  h1{font-size:clamp(2.65rem,9vw,5.5rem);font-weight:560;letter-spacing:-.035em;
-    line-height:.95;margin:0;max-width:12ch}
+  h1{font-size:clamp(2.65rem,8.4vw,5.2rem);font-weight:560;letter-spacing:-.035em;
+    line-height:.96;margin:0;max-width:13ch}
   .dek{font-size:1.2rem;line-height:1.5;color:var(--muted);max-width:57ch;margin:1.5rem 0 0}
   .meta{font-family:var(--sans);font-size:.72rem;color:var(--faint);margin-top:1.35rem}
   .route{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
     padding:1.25rem 1.35rem;margin:2rem 0 3rem}
   .route strong{font-family:var(--sans);font-size:.73rem;text-transform:uppercase;
     letter-spacing:.13em;color:var(--accent)}
-  .route-grid{display:grid;grid-template-columns:1fr 1fr;gap:.2rem 2rem;margin-top:.75rem}
-  .route ol{margin:.4rem 0;padding-left:1.25rem;font-size:.93rem}
-  .route li{margin:.28rem 0}
+  .route ol{columns:2;column-gap:2.5rem;margin:.65rem 0 0;padding-left:1.25rem}
+  .route li{margin:.3rem 0;break-inside:avoid}
   article h2{font-size:clamp(1.8rem,5vw,2.55rem);line-height:1.12;font-weight:560;
     letter-spacing:-.018em;margin:3.8rem 0 1rem;padding-top:.5rem}
   article h3{font-family:var(--sans);font-size:1rem;line-height:1.35;margin:2.2rem 0 .65rem}
@@ -67,36 +65,29 @@
   pre code{font-size:.78rem}
   .callout{border-left:3px solid var(--accent);padding:.2rem 0 .2rem 1.1rem;
     color:var(--muted);margin:1.6rem 0}
-  .system{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);
-    border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:1.5rem 0}
-  .system div{background:var(--panel);padding:1rem .7rem;text-align:center}
-  .system b{display:block;font-family:var(--sans);font-size:.72rem;color:var(--accent);
-    text-transform:uppercase;letter-spacing:.09em}
-  .system span{display:block;font-size:.82rem;color:var(--muted);margin-top:.25rem}
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.3rem 0}
-  .card{border:1px solid var(--rule);border-radius:10px;padding:1rem 1.1rem;background:var(--panel)}
-  .card b{font-family:var(--sans);font-size:.78rem;color:var(--accent);letter-spacing:.08em;text-transform:uppercase}
-  .card p{font-size:.93rem;color:var(--muted);margin:.4rem 0 0}
-  .stage{border:1px solid var(--rule);border-radius:10px;margin:1.2rem 0;overflow:hidden}
-  .stage-head{display:flex;justify-content:space-between;gap:1rem;background:var(--panel);
-    padding:.85rem 1rem;font-family:var(--sans);font-weight:650}
-  .stage-head span{color:var(--accent);font-size:.73rem;text-transform:uppercase;letter-spacing:.08em}
-  .stage-body{padding:.25rem 1rem .8rem}
+  .contract{border:1px solid var(--rule);border-radius:10px;background:var(--panel);
+    padding:1rem 1.2rem;margin:1.3rem 0}
+  .contract h3{margin:0 0 .65rem;color:var(--accent)}
+  .contract ul{margin:.4rem 0}
+  .trace-wrap{overflow-x:auto;margin:1.4rem 0;border:1px solid var(--rule);border-radius:10px}
+  table{width:100%;border-collapse:collapse;min-width:680px;font-family:var(--sans);font-size:.78rem}
+  th{text-align:left;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;
+    background:var(--panel);font-size:.68rem}
+  th,td{padding:.7rem .75rem;border-bottom:1px solid var(--rule);vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  td code{font-size:.75rem}
+  .exercise{border:2px solid var(--ink);border-radius:10px;padding:1rem 1.2rem;margin:2rem 0}
+  .exercise h3{margin:0 0 .7rem}
   .check{list-style:none;padding:0}
-  .check li{padding:.68rem 0 .68rem 1.7rem;border-bottom:1px solid var(--rule);position:relative}
+  .check li{padding:.65rem 0 .65rem 1.7rem;border-bottom:1px solid var(--rule);position:relative}
   .check li::before{content:"□";position:absolute;left:0;color:var(--accent);font-family:var(--sans)}
-  .next{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
-    padding:1.2rem 1.3rem;margin-top:2rem}
-  .next strong{font-family:var(--sans);color:var(--good)}
   footer{border-top:3px double var(--ink);margin-top:4rem;padding-top:1.2rem;
     display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
     font-family:var(--sans);font-size:.74rem;color:var(--faint)}
   @media(max-width:600px){
-    .page{width:min(100% - 2rem,780px);padding-top:1.25rem}
-    .route-grid,.cards{grid-template-columns:1fr}
-    .system{grid-template-columns:1fr 1fr}
+    .page{width:min(100% - 2rem,800px);padding-top:1.25rem}
+    .route ol{columns:1}
     pre{margin-left:-.25rem;margin-right:-.25rem;padding:1rem;border-radius:8px}
-    .stage-head{display:block}.stage-head span{display:block;margin-top:.2rem}
   }
   @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
@@ -106,79 +97,138 @@
   <a class="back" href="index.html">← Max Khor</a>
 
   <header>
-    <div class="eyebrow">Python concurrency · systems guide 02</div>
-    <h1>From blocking queue to worker pool</h1>
-    <p class="dek">A worker pool is not mysterious infrastructure. It is a queue, a fixed group of consumers, a completion protocol, an error channel, and a lifecycle contract.</p>
-    <div class="meta">Max Khor · July 2026 · Read, then build</div>
+    <div class="eyebrow">Python concurrency · worked tutorial</div>
+    <h1>A small worker pool, explained by execution</h1>
+    <p class="dek">We will build one program, trace its state, find the places where it can hang, and end with a tested implementation.</p>
+    <div class="meta">Max Khor · July 2026 · Guide 02</div>
   </header>
 
-  <nav class="route" aria-label="Guide contents">
+  <nav class="route" aria-label="Tutorial contents">
     <strong>Contents</strong>
-    <div class="route-grid">
-      <ol>
-        <li><a href="#machine">The machine</a></li>
-        <li><a href="#completion">Retrieval vs completion</a></li>
-        <li><a href="#workers">The worker loop</a></li>
-        <li><a href="#backpressure">Backpressure</a></li>
-        <li><a href="#shutdown">Graceful shutdown</a></li>
-        <li><a href="#event">Why Event is not enough</a></li>
-      </ol>
-      <ol start="7">
-        <li><a href="#errors">Making errors visible</a></li>
-        <li><a href="#executor">Executors and futures</a></li>
-        <li><a href="#tradeoffs">DIY vs executor</a></li>
-        <li><a href="#lab">Staged lab</a></li>
-        <li><a href="#async">Async mapping</a></li>
-        <li><a href="#read-now">What to do now</a></li>
-      </ol>
-    </div>
+    <ol>
+      <li><a href="#contract">Fix the contract</a></li>
+      <li><a href="#baseline">Sequential baseline</a></li>
+      <li><a href="#first-worker">One queue, one worker</a></li>
+      <li><a href="#trace">Trace the counters</a></li>
+      <li><a href="#completion">Completion accounting</a></li>
+      <li><a href="#shutdown">Stopping workers</a></li>
+      <li><a href="#failure">Surviving job failures</a></li>
+      <li><a href="#backpressure">Backpressure</a></li>
+      <li><a href="#implementation">Complete implementation</a></li>
+      <li><a href="#tests">Tests</a></li>
+      <li><a href="#executor">Executor equivalent</a></li>
+      <li><a href="#exercise">Your exercise</a></li>
+    </ol>
   </nav>
 
   <article>
-    <h2 id="machine">1. The worker system as a small machine</h2>
-    <p>The smallest useful worker system has five responsibilities:</p>
+    <h2 id="contract">1. Fix the contract before writing threads</h2>
+    <p>Our example processes document IDs. The processing function may return a value or raise an ordinary <code>Exception</code> subclass. We want several workers, but no more than a fixed number may run at once.</p>
 
-    <div class="system">
-      <div><b>Submit</b><span>accept work</span></div>
-      <div><b>Queue</b><span>buffer and limit</span></div>
-      <div><b>Workers</b><span>process concurrently</span></div>
-      <div><b>Lifecycle</b><span>finish and stop</span></div>
+    <div class="contract">
+      <h3>Contract for this version</h3>
+      <ul>
+        <li>The constructor starts a fixed number of non-daemon worker threads.</li>
+        <li><code>submit(item)</code> blocks when the bounded input queue is full.</li>
+        <li>One coordinator submits jobs, then calls <code>shutdown()</code>. Those two activities do not run concurrently.</li>
+        <li>Every accepted job that returns or raises an ordinary exception produces either a result or a recorded exception.</li>
+        <li>One failed job does not terminate its worker.</li>
+        <li><code>shutdown()</code> waits for accepted jobs and terminates every worker.</li>
+        <li>Result order is unspecified.</li>
+      </ul>
     </div>
 
-    <ol>
-      <li><strong>Intake:</strong> decide whether new work is accepted.</li>
-      <li><strong>Backpressure:</strong> decide what happens when work arrives faster than workers finish it.</li>
-      <li><strong>Execution:</strong> let a bounded number of workers process independent items.</li>
-      <li><strong>Completion:</strong> distinguish removing a job from actually finishing it.</li>
-      <li><strong>Shutdown:</strong> define when submissions stop, what happens to queued work, and how workers terminate.</li>
-    </ol>
+    <p>The single-coordinator restriction is deliberate. Supporting <code>submit()</code> racing with <code>shutdown()</code> requires an atomic closed-state boundary. Your closeable condition queue supplies that stronger primitive; the standard sentinel example below does not.</p>
 
-    <p>The queue protects communication between producers and workers. It does not, by itself, answer whether the system is open, whether work succeeded, or when every worker should exit.</p>
+    <h2 id="baseline">2. Begin with the sequential program</h2>
+    <pre><code class="language-python">def process(document_id: str) -&gt; str:
+    return document_id.upper()
 
-    <div class="callout">The main design skill is turning vague words like “done” and “shutdown” into observable state transitions.</div>
 
-    <h2 id="completion">2. Retrieving work is not completing work</h2>
-    <p>A worker calling <code>get()</code> only claims an item. The job may still be running—or may fail. This is why <code>queue.Queue</code> maintains a separate unfinished-task count:</p>
+results = []
+for document_id in ["a", "b", "c"]:
+    results.append(process(document_id))
 
-    <pre><code>put(job)       → unfinished count + 1
-get()          → queue item removed; count unchanged
-task_done()    → unfinished count - 1
-join()         → wait until unfinished count = 0</code></pre>
+assert results == ["A", "B", "C"]</code></pre>
 
-    <p>Suppose the queue physically becomes empty while two workers are still processing. <code>queue.empty()</code> may be true, but the batch is not complete. <code>queue.join()</code> waits for the stronger fact: every accepted item has a matching <code>task_done()</code>.</p>
+    <p>This gives a reference contract: three inputs produce three outputs. The order is deterministic because there is one execution path.</p>
 
-    <pre><code class="language-python">job = jobs.get()
+    <p>Adding workers changes two properties. Completion order can vary, and exceptions occur away from the coordinating thread. The concurrent version must make both behaviors explicit.</p>
+
+    <h2 id="first-worker">3. Add one queue and one worker</h2>
+    <pre><code class="language-python">from queue import Queue
+from threading import Thread
+
+
+jobs = Queue(maxsize=2)
+results = []
+
+
+def worker():
+    while True:
+        item = jobs.get()
+        result = process(item)
+        results.append(result)
+        jobs.task_done()
+
+
+thread = Thread(target=worker)
+thread.start()
+
+for item in ["a", "b", "c"]:
+    jobs.put(item)
+
+jobs.join()</code></pre>
+
+    <p><code>put()</code> publishes work. <code>get()</code> claims work. <code>task_done()</code> records completion. <code>jobs.join()</code> waits until every published job has a matching completion.</p>
+
+    <p>This program processes all three jobs, but it never exits: after the third item, the worker loops back to <code>get()</code> and waits for a fourth item. The main thread has no shutdown message to send.</p>
+
+    <h2 id="trace">4. Trace the queue and unfinished count</h2>
+    <p>Queue length and unfinished work measure different things. A worker removes an item before processing it, so an empty queue can coexist with active work.</p>
+
+    <div class="trace-wrap">
+      <table>
+        <thead><tr><th>Event</th><th>Queue</th><th>Unfinished</th><th>Worker</th><th>Main thread</th></tr></thead>
+        <tbody>
+          <tr><td><code>put("a")</code></td><td><code>[a]</code></td><td>1</td><td>waiting or runnable</td><td>continues</td></tr>
+          <tr><td><code>get()</code> returns <code>a</code></td><td><code>[]</code></td><td>1</td><td>processing <code>a</code></td><td>may submit more</td></tr>
+          <tr><td><code>put("b")</code></td><td><code>[b]</code></td><td>2</td><td>processing <code>a</code></td><td>continues</td></tr>
+          <tr><td><code>task_done()</code> for <code>a</code></td><td><code>[b]</code></td><td>1</td><td>loops to <code>get()</code></td><td>may be in <code>join()</code></td></tr>
+          <tr><td><code>get()</code> returns <code>b</code></td><td><code>[]</code></td><td>1</td><td>processing <code>b</code></td><td><code>join()</code> still waits</td></tr>
+          <tr><td><code>task_done()</code> for <code>b</code></td><td><code>[]</code></td><td>0</td><td>loops to <code>get()</code></td><td><code>join()</code> returns</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout"><code>Queue.join()</code> waits on the unfinished-task counter. It does not wait for the queue's physical length to become zero.</div>
+
+    <h2 id="completion">5. Balance every <code>get()</code> with <code>task_done()</code></h2>
+    <p>This worker contains a liveness bug:</p>
+
+    <pre><code class="language-python">item = jobs.get()
+result = process(item)  # may raise
+results.append(result)
+jobs.task_done()</code></pre>
+
+    <p>If <code>process()</code> raises, execution skips <code>task_done()</code>. The unfinished count never reaches zero, so <code>jobs.join()</code> can wait forever.</p>
+
+    <p>The completion signal belongs in <code>finally</code>:</p>
+
+    <pre><code class="language-python">item = jobs.get()
 try:
-    process(job)
+    result = process(item)
+    results.append(result)
 finally:
     jobs.task_done()</code></pre>
 
-    <p>The <code>finally</code> is not cosmetic. If processing raises and skips <code>task_done()</code>, the unfinished counter never reaches zero and another thread can remain blocked inside <code>join()</code> forever.</p>
+    <p>This restores the queue accounting, although the worker still dies from the uncaught exception. Section 7 will preserve both the accounting and the worker.</p>
 
-    <h2 id="workers">3. The worker loop</h2>
-    <p>A long-lived worker repeatedly claims and processes items. On Python versions before 3.13, a common teaching pattern uses a unique sentinel object to mean “terminate this worker”:</p>
+    <h2 id="shutdown">6. Stop workers with one sentinel each</h2>
+    <p>For Python versions before <code>Queue.shutdown()</code>, a common worker-loop protocol uses a unique object as a control message:</p>
 
     <pre><code class="language-python">STOP = object()
+
 
 def worker():
     while True:
@@ -186,267 +236,322 @@ def worker():
         try:
             if item is STOP:
                 return
-            process(item)
+            results.append(process(item))
         finally:
             jobs.task_done()</code></pre>
 
-    <p>Use a unique object and identity comparison so a normal input cannot accidentally equal the sentinel.</p>
+    <p>The sentinel passes through the same queue as normal jobs. One worker retrieves it, balances it with <code>task_done()</code>, and returns from its target function.</p>
 
-    <h3>One sentinel stops one worker</h3>
-    <p>A sentinel is an ordinary queue item. The first worker that retrieves it exits. With four workers, enqueue four sentinels if all four must terminate.</p>
+    <p>With two workers, submit two sentinels:</p>
 
-    <pre><code class="language-python">for _ in workers:
-    jobs.put(STOP)</code></pre>
-
-    <p>The sentinel also increments the unfinished-task count, so the worker must call <code>task_done()</code> for it. Otherwise a later <code>queue.join()</code> can hang.</p>
-
-    <div class="callout">A sentinel is a message inside the data stream. Closure is state on the queue itself. They can implement similar user-visible outcomes, but they are not the same abstraction.</div>
-
-    <h2 id="backpressure">4. Backpressure: bound the waiting work</h2>
-    <p>If producers can enqueue without limit, the queue becomes an unbounded memory buffer. A bounded queue makes overload visible:</p>
-
-    <pre><code class="language-python">jobs = Queue(maxsize=capacity)
-jobs.put(item)  # waits while full</code></pre>
-
-    <p>Backpressure means slowing intake because downstream work cannot keep up. It is not automatically an error. The system must choose a policy:</p>
-
-    <div class="cards">
-      <div class="card"><b>Block</b><p>Wait for capacity. Simple and lossless, but may propagate latency upstream.</p></div>
-      <div class="card"><b>Timeout</b><p>Wait up to a limit, then surface overload to the caller.</p></div>
-      <div class="card"><b>Reject</b><p>Fail immediately when full. The caller decides whether to retry.</p></div>
-      <div class="card"><b>Drop</b><p>Discard selected work. Only valid when loss is explicitly acceptable.</p></div>
-    </div>
-
-    <p>A worker count limits simultaneous execution. Queue capacity limits accepted but not-yet-completed work. They control different resources.</p>
-
-    <h2 id="shutdown">5. Graceful shutdown is an ordering protocol</h2>
-    <p>For a simple system where one coordinator submits all work and then shuts down, the safe sequence is:</p>
-
-    <pre><code>1. stop producing normal jobs
-2. wait for accepted jobs to finish: jobs.join()
-3. enqueue one STOP sentinel per worker
-4. wait for sentinel tasks: jobs.join()
-5. join every worker thread</code></pre>
-
-    <pre><code class="language-python">for item in inputs:
-    jobs.put(item)
-
-jobs.join()
+    <pre><code class="language-python">jobs.join()  # normal jobs finished
 
 for _ in workers:
     jobs.put(STOP)
 
-jobs.join()
+jobs.join()  # sentinels consumed
 
 for thread in workers:
     thread.join()</code></pre>
 
-    <p>This works under an important assumption: nobody submits normal work after the coordinator begins shutdown. If independent producers can race with shutdown, sentinels are not enough to define an atomic “closed for submission” boundary.</p>
+    <p>One sentinel cannot stop two workers. The first worker consumes it and exits; the second remains blocked in <code>get()</code>.</p>
 
-    <p>For that stronger contract, use the closeable condition-based queue from the previous guide, or Python 3.13+ <code>Queue.shutdown()</code>. Modern queue shutdown rejects future puts, wakes blocked producers, permits graceful draining, then makes gets fail once empty.</p>
+    <p>The shutdown order also matters. Normal submissions finish before sentinels are inserted. Under this tutorial's contract, no producer can append a normal job behind the stop messages.</p>
 
-    <h3>Graceful versus immediate</h3>
-    <div class="cards">
-      <div class="card"><b>Graceful</b><p>Reject new work, finish accepted work, then stop workers.</p></div>
-      <div class="card"><b>Immediate</b><p>Stop waiting quickly and abandon some queued work under an explicit contract.</p></div>
-    </div>
-
-    <p>Immediate shutdown breaks the ordinary meaning of “join means everything was processed”. Treat it as a separate operation, not a faster implementation of graceful shutdown.</p>
-
-    <h2 id="event">6. Why a stop <code>Event</code> is not enough</h2>
-    <p>This loop looks plausible:</p>
-
-    <pre><code class="language-python">while not stop_requested.is_set():
-    item = jobs.get()
-    process(item)</code></pre>
-
-    <p>But the worker cannot inspect the event while blocked indefinitely inside <code>get()</code>. Setting the event does not wake a queue waiter.</p>
-
-    <p>Three coherent alternatives are:</p>
-
-    <ol>
-      <li>Send sentinels through the queue.</li>
-      <li>Use queue closure that wakes blocked operations.</li>
-      <li>Use a finite <code>get(timeout=...)</code>, catch <code>Empty</code>, then re-check the event.</li>
-    </ol>
-
-    <p>The timeout approach introduces periodic wake-ups and shutdown latency. It is useful when work already has natural polling intervals, but a sentinel or closeable queue is usually cleaner for a pure worker pool.</p>
-
-    <h2 id="errors">7. Make worker failures visible</h2>
-    <p>An uncaught exception ends a raw worker thread and is printed by Python, but <code>Thread.join()</code> does not re-raise it in the coordinator. The main flow can incorrectly continue as if the batch succeeded.</p>
-
-    <p>A small raw-thread design can catch and record failures:</p>
+    <h2 id="failure">7. Record failures without losing the worker</h2>
+    <p>Raw thread exceptions do not travel through <code>Thread.join()</code> to the coordinator. Catch ordinary job exceptions inside the loop and store the outcome under a lock:</p>
 
     <pre><code class="language-python">try:
-    process(item)
+    result = self._process(item)
 except Exception as exc:
-    with error_lock:
-        errors.append((item, exc))
+    with self._outcomes_lock:
+        self._errors.append((item, exc))
+else:
+    with self._outcomes_lock:
+        self._results.append((item, result))
 finally:
-    jobs.task_done()</code></pre>
+    self._jobs.task_done()</code></pre>
 
-    <p>Decide whether one failure should stop intake, allow independent jobs to continue, or trigger retries. “Catch every exception” is not a failure policy; it merely makes policy possible.</p>
+    <p>The inner <code>try</code> handles a job failure and allows the worker loop to continue. The outer <code>finally</code> guarantees completion accounting.</p>
 
-    <h3>Completion guarantees need careful words</h3>
-    <p>Inside one healthy process, a queue can arrange for each accepted object to be claimed once. That is not durable “exactly once” execution: the process can crash after an external side effect but before recording completion. Durable systems need idempotency, persistent state, or acknowledgement protocols beyond an in-memory thread pool.</p>
+    <p>The result and error lists have multiple writers, so the same lock protects both. Their order reflects completion timing and should not be used as submission order.</p>
 
-    <h2 id="executor">8. <code>ThreadPoolExecutor</code> packages the common case</h2>
-    <p>The high-level interface accepts callables and returns futures:</p>
+    <h2 id="backpressure">8. Understand what queue capacity limits</h2>
+    <p>Suppose there are two workers and the queue capacity is three. Once both workers have claimed a job, up to five jobs can be outstanding without a producer blocking:</p>
 
-    <pre><code class="language-python">from concurrent.futures import ThreadPoolExecutor, as_completed
+    <pre><code>2 jobs running in workers
+3 jobs waiting in the queue
+──────────────────────────
+5 accepted, unfinished jobs</code></pre>
 
-with ThreadPoolExecutor(max_workers=4) as executor:
-    futures = [executor.submit(fetch, url) for url in urls]
+    <p>Worker count limits simultaneous processing. Queue capacity limits waiting work. <code>put()</code> blocks only when the queue itself is full; running jobs are no longer physically inside it.</p>
 
-    for future in as_completed(futures):
-        result = future.result()</code></pre>
+    <p>This blocking behavior is backpressure: intake slows when downstream processing cannot keep pace. It prevents an unbounded queue from consuming memory while retaining every submitted item.</p>
 
-    <p>A <code>Future</code> is a handle to one eventual outcome. <code>result()</code> waits if needed, returns the value, or re-raises the worker exception in the caller. <code>as_completed()</code> yields futures in finishing order rather than submission order.</p>
+    <h3>A two-worker trace</h3>
+    <p>With two workers and queue capacity two, force both workers to pause while processing <code>A</code> and <code>B</code>:</p>
 
-    <pre><code>pending → running → finished with value
-                  → finished with exception
-        ↘ cancelled before running</code></pre>
-
-    <h3>Executor shutdown</h3>
-    <p><code>shutdown(wait=True)</code> stops new submissions and waits for pending work. With <code>cancel_futures=True</code>, tasks not yet started are cancelled; running tasks are not forcibly terminated.</p>
-
-    <p>Even <code>shutdown(wait=False)</code> does not make the Python process exit while pending executor work remains. Use the executor as a context manager for the ordinary drain-and-wait contract.</p>
-
-    <h3>Pool starvation deadlock</h3>
-    <p>If every worker is occupied by a task waiting on another future scheduled onto the same exhausted pool, no worker remains to run the dependency. Avoid making pool tasks synchronously wait for work that requires a free worker from that same pool.</p>
-
-    <h2 id="tradeoffs">9. Custom workers versus an executor</h2>
-    <div class="cards">
-      <div class="card"><b>Custom queue + threads</b><p>Best for learning, explicit backpressure, unusual lifecycle rules, streaming consumers, or custom scheduling.</p></div>
-      <div class="card"><b>ThreadPoolExecutor</b><p>Best for submitting independent callables and collecting results or exceptions with minimal machinery.</p></div>
+    <div class="trace-wrap">
+      <table>
+        <thead><tr><th>Event</th><th>Worker 1</th><th>Worker 2</th><th>Queue</th><th>Unfinished</th><th>Submitter</th></tr></thead>
+        <tbody>
+          <tr><td>Workers claim first jobs</td><td>processing <code>A</code></td><td>processing <code>B</code></td><td><code>[]</code></td><td>2</td><td>running</td></tr>
+          <tr><td>Submit <code>C</code> and <code>D</code></td><td>paused on <code>A</code></td><td>paused on <code>B</code></td><td><code>[C, D]</code></td><td>4</td><td>running</td></tr>
+          <tr><td>Attempt <code>E</code></td><td>paused</td><td>paused</td><td><code>[C, D]</code></td><td>4</td><td>blocked in <code>put()</code></td></tr>
+          <tr><td>Release Worker 1</td><td>finishes <code>A</code>, claims <code>C</code></td><td>paused on <code>B</code></td><td><code>[D]</code></td><td>3</td><td><code>put(E)</code> can finish</td></tr>
+          <tr><td><code>E</code> enters queue</td><td>processing <code>C</code></td><td>paused on <code>B</code></td><td><code>[D, E]</code></td><td>4</td><td>returns</td></tr>
+        </tbody>
+      </table>
     </div>
 
-    <p>The executor is not “more concurrent”. It is a higher-level contract over a worker pool. Reach for the simplest abstraction that directly represents the behavior required.</p>
+    <p>Claiming <code>C</code> creates queue space even though Worker 1 immediately begins more work. Queue capacity controls waiting jobs; the unfinished count continues to include running jobs.</p>
 
-    <h2 id="lab">10. Staged hands-on lab</h2>
-    <p>Do not attempt every stage in one sitting. Each stage should produce running code and tests before the next extension.</p>
-
-    <div class="stage">
-      <div class="stage-head">Stage A — Closeable bounded queue <span>Current</span></div>
-      <div class="stage-body">
-        <p>Finish the condition-based queue shutdown exercise from the first guide. This establishes the lifecycle primitive the later system can depend on.</p>
-      </div>
-    </div>
-
-    <div class="stage">
-      <div class="stage-head">Stage B — Standard-library worker system <span>Next</span></div>
-      <div class="stage-body">
-        <p>Use <code>queue.Queue</code>, raw <code>Thread</code> workers, one unique sentinel per worker, <code>task_done()</code>, queue joins, and thread joins.</p>
-      </div>
-    </div>
-
-    <div class="stage">
-      <div class="stage-head">Stage C — Failures and results <span>Extension</span></div>
-      <div class="stage-body">
-        <p>Capture successful results and exceptions without letting one failed job strand the unfinished-task counter.</p>
-      </div>
-    </div>
-
-    <div class="stage">
-      <div class="stage-head">Stage D — Executor rewrite <span>Compare</span></div>
-      <div class="stage-body">
-        <p>Express the same independent jobs with <code>ThreadPoolExecutor</code>, futures and <code>as_completed()</code>. Compare which lifecycle concerns disappear and which remain.</p>
-      </div>
-    </div>
-
-    <h3>Stage B scaffold</h3>
+    <h2 id="implementation">9. Complete implementation</h2>
     <pre><code class="language-python">from queue import Queue
-from threading import Thread
+from threading import Lock, Thread
 
 
-STOP = object()
+class WorkerPool:
+    def __init__(self, process, worker_count: int, capacity: int):
+        if isinstance(worker_count, bool) or not isinstance(worker_count, int) or worker_count &lt;= 0:
+            raise ValueError("worker_count must be a positive integer")
+        if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity &lt;= 0:
+            raise ValueError("capacity must be a positive integer")
 
+        self._process = process
+        self._jobs = Queue(maxsize=capacity)
+        self._stop = object()
+        self._outcomes_lock = Lock()
+        self._results = []
+        self._errors = []
+        self._closed = False
 
-class WorkerSystem:
-    def __init__(self, process, workers: int, capacity: int):
-        # validate inputs
-        # create Queue(maxsize=capacity)
-        # create and start worker threads
-        ...
+        self._workers = [
+            Thread(target=self._worker, name=f"worker-{index}", daemon=False)
+            for index in range(worker_count)
+        ]
+        for thread in self._workers:
+            thread.start()
 
     def submit(self, item) -&gt; None:
-        # This base version is called only before shutdown.
-        ...
+        if self._closed:
+            raise RuntimeError("worker pool is closed")
+        self._jobs.put(item)
 
     def shutdown(self) -&gt; None:
-        # drain accepted work
-        # stop all workers
-        # join all workers
-        ...
+        if self._closed:
+            return
+
+        self._closed = True
+        self._jobs.join()
+
+        for _ in self._workers:
+            self._jobs.put(self._stop)
+
+        self._jobs.join()
+
+        for thread in self._workers:
+            thread.join()
+
+    def results(self):
+        with self._outcomes_lock:
+            return list(self._results)
+
+    def errors(self):
+        with self._outcomes_lock:
+            return list(self._errors)
 
     def _worker(self) -&gt; None:
-        # get repeatedly
-        # always balance get() with task_done()
-        ...</code></pre>
+        while True:
+            item = self._jobs.get()
+            try:
+                if item is self._stop:
+                    return
 
-    <h3>Base contract</h3>
-    <ul class="check">
-      <li>Constructor validates positive integer worker count and capacity.</li>
-      <li>Workers start once and remain alive while waiting for work.</li>
-      <li>Every submitted item is processed exactly once within the healthy process.</li>
-      <li>The bounded queue applies backpressure to <code>submit()</code>.</li>
-      <li><code>shutdown()</code> waits for accepted jobs before stopping workers.</li>
-      <li>Every worker terminates; shutdown does not leave daemon threads behind.</li>
-      <li>The test does not assume a particular global completion order.</li>
-    </ul>
+                try:
+                    result = self._process(item)
+                except Exception as exc:
+                    with self._outcomes_lock:
+                        self._errors.append((item, exc))
+                else:
+                    with self._outcomes_lock:
+                        self._results.append((item, result))
+            finally:
+                self._jobs.task_done()</code></pre>
 
-    <h3>Tests to write before extensions</h3>
-    <ol>
-      <li>Two workers process six distinct items.</li>
-      <li>All output items appear exactly once, in any order.</li>
-      <li>After shutdown, every worker reports <code>is_alive() == False</code>.</li>
-      <li>The queue's unfinished-task count reaches zero, observed through a returning <code>join()</code>.</li>
-      <li>Capacity one still makes progress with multiple jobs.</li>
-    </ol>
+    <h3>Why the closed flag is sufficient here</h3>
+    <p>The contract gives lifecycle ownership to one coordinator: it finishes calling <code>submit()</code> before calling <code>shutdown()</code>. Therefore, the check in <code>submit()</code> cannot race with shutdown.</p>
 
-    <p>The base contract intentionally assumes submissions finish before shutdown begins. Do not quietly add concurrent submit-versus-shutdown semantics. That is a separate extension requiring an atomic lifecycle boundary.</p>
+    <p>If arbitrary producer threads may submit concurrently with shutdown, this implementation is incomplete. A producer could pass the closed check, pause, and enqueue after stop messages. Use a queue whose close operation is synchronized with <code>put()</code>, such as your condition-based closeable queue or Python 3.13+ <code>Queue.shutdown()</code>.</p>
 
-    <h2 id="async">11. The async version has the same machine</h2>
-    <p><code>asyncio.Queue</code> has the same conceptual unfinished-task count, <code>task_done()</code>, and <code>join()</code>. The execution units are event-loop tasks rather than OS threads:</p>
+    <h2 id="tests">10. Tests that check the contract</h2>
+    <pre><code class="language-python">def process(value):
+    if value == 3:
+        raise ValueError("bad input")
+    return value * 10
 
-    <pre><code class="language-python">async def worker(queue):
-    while True:
-        item = await queue.get()
+
+pool = WorkerPool(process, worker_count=2, capacity=2)
+
+for value in range(6):
+    pool.submit(value)
+
+pool.shutdown()
+
+assert sorted(pool.results()) == [
+    (0, 0),
+    (1, 10),
+    (2, 20),
+    (4, 40),
+    (5, 50),
+]
+
+errors = pool.errors()
+assert len(errors) == 1
+assert errors[0][0] == 3
+assert isinstance(errors[0][1], ValueError)
+
+assert all(not thread.is_alive() for thread in pool._workers)
+
+try:
+    pool.submit(99)
+    assert False, "submit should fail after shutdown"
+except RuntimeError:
+    pass</code></pre>
+
+    <p>The test sorts results because completion order is unspecified. It checks that a failed job is visible, that other jobs complete, and that every worker terminates.</p>
+
+    <p>This happy-path test calls <code>shutdown()</code> directly. If you deliberately remove <code>task_done()</code>, run the whole test file as a child process with a timeout. A helper thread is insufficient: after the assertion fails, that non-daemon thread and the workers can still keep the Python process alive.</p>
+
+    <pre><code class="language-python"># run_pool_check.py
+import subprocess
+import sys
+
+
+try:
+    subprocess.run(
+        [sys.executable, "pool_check.py"],
+        check=True,
+        timeout=2,
+    )
+except subprocess.TimeoutExpired:
+    print("pool_check.py did not terminate: inspect task_done() and shutdown")
+    raise</code></pre>
+
+    <h3>Force a producer to experience backpressure</h3>
+    <p>Events let the test hold the worker in a known state. With one worker processing <code>A</code> and a capacity-one queue holding <code>B</code>, submitting <code>C</code> cannot finish until the worker is released:</p>
+
+    <pre><code class="language-python">from queue import Full
+from threading import Event, Thread
+
+
+processing_started = Event()
+release_worker = Event()
+queue_was_full = Event()
+submit_finished = Event()
+
+
+def gated_process(value):
+    processing_started.set()
+    release_worker.wait()
+    return value
+
+
+pool = WorkerPool(gated_process, worker_count=1, capacity=1)
+pool.submit("A")
+assert processing_started.wait(timeout=1)  # worker holds A
+
+pool.submit("B")                           # B fills the queue
+assert pool._jobs.full()                   # safe: worker is gated
+
+
+def submit_c():
+    try:
+        pool._jobs.put_nowait("C")
+        raise AssertionError("expected the capacity-one queue to be full")
+    except Full:
+        queue_was_full.set()
+
+    pool.submit("C")                       # waits for queue space
+    submit_finished.set()
+
+
+submitter = Thread(target=submit_c)
+submitter.start()
+
+try:
+    assert queue_was_full.wait(timeout=1)
+    assert submitter.is_alive()
+    assert not submit_finished.is_set()
+finally:
+    release_worker.set()                   # A finishes; worker claims B
+    submitter.join(timeout=1)
+
+assert not submitter.is_alive()
+assert submit_finished.is_set()
+
+pool.shutdown()                            # B and C finish; worker stops
+assert sorted(pool.results()) == [
+    ("A", "A"),
+    ("B", "B"),
+    ("C", "C"),
+]</code></pre>
+
+    <p>The non-blocking probe proves that the capacity-one queue was full. The worker cannot remove <code>B</code> while it is held by the event, so the following public <code>submit("C")</code> must wait. The <code>finally</code> block releases the worker even if an assertion fails.</p>
+
+    <h2 id="executor">11. The same workload with <code>ThreadPoolExecutor</code></h2>
+    <pre><code class="language-python">from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+with ThreadPoolExecutor(max_workers=2) as executor:
+    future_to_value = {
+        executor.submit(process, value): value
+        for value in range(6)
+    }
+
+    results = []
+    errors = []
+
+    for future in as_completed(future_to_value):
+        value = future_to_value[future]
         try:
-            if item is STOP:
-                return
-            await process(item)
-        finally:
-            queue.task_done()</code></pre>
+            results.append((value, future.result()))
+        except Exception as exc:
+            errors.append((value, exc))</code></pre>
 
-    <p>Async queue methods do not take timeout parameters. Compose timeouts around awaitables, for example with <code>asyncio.wait_for()</code> or the modern timeout context manager.</p>
+    <p>A future carries one job's value or exception back to the coordinator. The context manager stops accepting submissions and waits for submitted work when leaving the block.</p>
 
-    <p>Cancellation is injected at an <code>await</code> point. Cleanup still belongs in <code>finally</code>. If a task claimed a queue item before cancellation, it must preserve the completion invariant or explicitly requeue/abandon the item under a defined policy.</p>
+    <p>The executor removes most worker-loop and shutdown plumbing. Repeated calls to its general <code>submit()</code> interface do not expose a public bounded-queue capacity. Python 3.14 added <code>buffersize</code> to <code>Executor.map()</code>, which pauses input iteration when that buffer is full; that option applies to mapped input, not individual <code>submit()</code> calls. The custom pool remains useful when bounded submission is part of the API contract.</p>
 
-    <p>Do not use <code>asyncio.Queue</code> for communication between OS threads; it is designed for async tasks. Likewise, a blocking <code>queue.Queue.get()</code> inside the event-loop thread would freeze all coroutines on that loop.</p>
-
-    <h2 id="read-now">12. What to do now</h2>
-    <div class="next">
-      <strong>Immediate sequence</strong>
+    <h2 id="exercise">12. Your exercise</h2>
+    <div class="exercise">
+      <h3>Implement the pool without copying Section 9</h3>
       <ol>
-        <li>Read Sections 1–6 carefully.</li>
-        <li>Implement Stage A: closeable condition-based queue.</li>
-        <li>Return to Sections 7–10.</li>
-        <li>Implement Stage B from the scaffold.</li>
-        <li>Only then compare the executor and async versions.</li>
+        <li>Close this page after reading the contract and traces.</li>
+        <li>Implement <code>WorkerPool</code> from the method names only.</li>
+        <li>Write the success case before adding error capture.</li>
+        <li>Add sentinel shutdown and prove every worker terminates.</li>
+        <li>Add exception capture without breaking <code>Queue.join()</code>.</li>
+        <li>Compare your version with Section 9 only after tests pass or you are stuck.</li>
       </ol>
     </div>
 
-    <p>The goal is not to memorize five APIs. It is to recognize the same machine—intake, bounded waiting, execution, completion, errors and shutdown—under several levels of abstraction.</p>
+    <ul class="check">
+      <li>Can you explain why queue length can be zero while unfinished work is positive?</li>
+      <li>Can you explain why every <code>get()</code>, including a sentinel, needs <code>task_done()</code>?</li>
+      <li>Can you explain why one sentinel is needed per worker?</li>
+      <li>Can you state the lifecycle assumption that makes the closed flag safe?</li>
+      <li>Can you identify what <code>ThreadPoolExecutor</code> gives you and what backpressure control it does not?</li>
+    </ul>
 
-    <div class="next">
-      <strong>Official references</strong>
-      <ul>
-        <li><a href="https://docs.python.org/3/library/queue.html">Python synchronized queue documentation</a></li>
-        <li><a href="https://docs.python.org/3/library/concurrent.futures.html">Python executors and futures documentation</a></li>
-        <li><a href="https://docs.python.org/3/library/asyncio-queue.html">Python asyncio queue documentation</a></li>
-      </ul>
-    </div>
+    <div class="callout"><strong>Next extension:</strong> replace the single-coordinator assumption with submissions that may race against shutdown. That extension should reuse a closeable queue whose lifecycle state and queue predicates share one lock.</div>
+
+    <h3>Official references</h3>
+    <ul>
+      <li><a href="https://docs.python.org/3/library/queue.html">Synchronized queue documentation</a></li>
+      <li><a href="https://docs.python.org/3/library/threading.html">Threading primitives documentation</a></li>
+      <li><a href="https://docs.python.org/3/library/concurrent.futures.html">Executors and futures documentation</a></li>
+    </ul>
   </article>
 
   <footer>
