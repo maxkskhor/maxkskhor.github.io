@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Closing a Blocking Queue Without Stranding Threads — Max Khor</title>
-<meta name="description" content="A first-principles guide to graceful shutdown for a condition-based Python blocking queue, including predicates, wake-ups and concurrency tests.">
+<title>Python Concurrency From First Principles — Max Khor</title>
+<meta name="description" content="A practical guide to Python threads, locks, conditions, semaphores, blocking queues, shutdown, worker pools, testing and asyncio.">
 <meta name="author" content="Max Khor">
 <link rel="canonical" href="https://maxkskhor.github.io/python-concurrency-queue-shutdown.html">
 <meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#161310" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://maxkskhor.github.io/python-concurrency-queue-shutdown.html">
-<meta property="og:title" content="Closing a Blocking Queue Without Stranding Threads">
-<meta property="og:description" content="Graceful shutdown for a condition-based Python blocking queue, from predicates to tests.">
+<meta property="og:title" content="Python Concurrency From First Principles">
+<meta property="og:description" content="Threads, locks, conditions, semaphores, queues, shutdown, worker pools and asyncio—built from shared-state mental models.">
 <meta property="og:image" content="https://maxkskhor.github.io/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%231a1712'/%3E%3Ctext%20x='16'%20y='23'%20font-family='Georgia,serif'%20font-size='21'%20font-weight='700'%20text-anchor='middle'%20fill='%23c96a4a'%3EM%3C/text%3E%3C/svg%3E">
@@ -56,6 +56,9 @@
     letter-spacing:.13em;color:var(--accent)}
   .route ol{margin:.6rem 0 0;padding-left:1.25rem}
   .route li{margin:.25rem 0}
+  .route-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem 2rem;margin-top:.8rem}
+  .route-group strong{color:var(--ink)}
+  .route-group ol{font-size:.92rem}
   article h2{font-size:clamp(1.8rem,5vw,2.55rem);line-height:1.12;font-weight:560;
     letter-spacing:-.018em;margin:3.7rem 0 1rem;padding-top:.5rem}
   article h3{font-family:var(--sans);font-size:1rem;line-height:1.35;margin:2.3rem 0 .65rem}
@@ -82,6 +85,7 @@
   @media (max-width:560px){
     .page{width:min(100% - 2rem,760px);padding-top:1.25rem}
     .state{grid-template-columns:1fr}
+    .route-grid{grid-template-columns:1fr;gap:1rem}
     pre{margin-left:-.25rem;margin-right:-.25rem;padding:1rem;border-radius:8px}
   }
   @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
@@ -92,25 +96,246 @@
   <a class="back" href="index.html">← Max Khor</a>
 
   <header>
-    <div class="eyebrow">Python concurrency · field note 01</div>
-    <h1>Closing a blocking queue without stranding threads</h1>
-    <p class="dek">A queue is easy to block when progress may come later. The harder question is what waiting should mean when no future work can arrive.</p>
-    <div class="meta">Max Khor · July 2026 · 10 minute read</div>
+    <div class="eyebrow">Living guide · Python concurrency</div>
+    <h1>Python concurrency from first principles</h1>
+    <p class="dek">Threads, shared state and blocking primitives become easier once every API call is translated into a concrete question about who may proceed—and why.</p>
+    <div class="meta">Max Khor · July 2026 · Living study note</div>
   </header>
 
   <nav class="route" aria-label="Article contents">
-    <strong>Reading route</strong>
-    <ol>
-      <li><a href="#state">Shutdown as state</a></li>
-      <li><a href="#predicates">Predicates after closure</a></li>
-      <li><a href="#wake">Why every waiter wakes</a></li>
-      <li><a href="#testing">Testing safety and progress</a></li>
-      <li><a href="#exercise">Implementation exercise</a></li>
-    </ol>
+    <strong>Contents</strong>
+    <div class="route-grid">
+      <div class="route-group">
+        <strong>Foundations</strong>
+        <ol>
+          <li><a href="#threads">Threads and shared state</a></li>
+          <li><a href="#locks">Locks and invariants</a></li>
+          <li><a href="#conditions">Conditions and predicates</a></li>
+          <li><a href="#lifecycle">Starting and joining</a></li>
+          <li><a href="#bounded">Bounded queues</a></li>
+          <li><a href="#semaphores">Semaphores</a></li>
+        </ol>
+      </div>
+      <div class="route-group">
+        <strong>Lifecycle</strong>
+        <ol start="7">
+          <li><a href="#state">Shutdown as state</a></li>
+          <li><a href="#predicates">Predicates after closure</a></li>
+          <li><a href="#wake">Why every waiter wakes</a></li>
+          <li><a href="#testing">Testing concurrent code</a></li>
+          <li><a href="#exercise">Queue exercise</a></li>
+        </ol>
+      </div>
+      <div class="route-group">
+        <strong>Higher-level tools</strong>
+        <ol start="12">
+          <li><a href="#event">Event</a></li>
+          <li><a href="#barrier">Barrier</a></li>
+          <li><a href="#stdlib-queue">queue.Queue</a></li>
+          <li><a href="#pool">Thread pools and futures</a></li>
+        </ol>
+      </div>
+      <div class="route-group">
+        <strong>Next layer</strong>
+        <ol start="16">
+          <li><a href="#asyncio">asyncio</a></li>
+          <li><a href="#checklist">Mental checklist</a></li>
+        </ol>
+      </div>
+    </div>
   </nav>
 
   <article>
-    <h2 id="state">1. Shutdown is a state transition</h2>
+    <h2 id="threads">1. One program, multiple threads</h2>
+    <p>A normal Python program begins with one execution path: the main thread. Sequential code has an unavoidable order:</p>
+
+    <pre><code>main thread: put(1) → put(2) → get()</code></pre>
+
+    <p>The call to <code>get()</code> cannot begin until <code>put(2)</code> returns. Creating worker threads introduces several paths that the scheduler may interleave:</p>
+
+    <pre><code>producer thread: put(1) → put(2) → put(3)
+consumer thread: get()  → get()  → get()
+main thread:     start both, then wait for both</code></pre>
+
+    <p>Correct concurrent code must work under every allowed interleaving, not only the order seen during one test run.</p>
+
+    <h3>The “calling thread”</h3>
+    <p>The calling thread is simply whichever thread is currently making a particular call. If a producer executes <code>condition.wait()</code>, the producer is the calling thread. If the main thread calls <code>worker.join()</code>, the main thread is the one that waits.</p>
+
+    <h3>Shared state creates the problem</h3>
+    <p>Threads in one process can access the same Python objects. That makes communication easy, but it also creates races. Consider two producers running an unprotected check:</p>
+
+    <pre><code class="language-python">if len(items) == 0:
+    items.append(item)</code></pre>
+
+    <p>Both producers can observe an empty collection before either appends. A supposed one-slot mailbox can end with two items. This is a <strong>race condition</strong>: correctness depends on unpredictable timing.</p>
+
+    <h2 id="locks">2. A lock protects an invariant</h2>
+    <p>A lock admits only one thread at a time into a protected critical section. The useful question is not “where should I sprinkle locks?” but “which statement must remain true while this state changes?”</p>
+
+    <p>For a one-slot mailbox, the invariant is:</p>
+
+    <pre><code>0 ≤ len(items) ≤ 1</code></pre>
+
+    <p>For a bounded queue:</p>
+
+    <pre><code>0 ≤ len(items) ≤ capacity</code></pre>
+
+    <p>Every check and mutation relevant to that invariant must occur while holding the same lock. Otherwise another thread can change the state between checking it and acting on it.</p>
+
+    <div class="callout">A lock answers <strong>who may inspect or modify the shared state right now?</strong> It does not answer what a thread should do when the state does not yet allow its operation.</div>
+
+    <p>A public observer such as <code>size()</code> should acquire the lock because callers may invoke it independently:</p>
+
+    <pre><code class="language-python">def size(self) -&gt; int:
+    with self.condition:
+        return len(self.items)</code></pre>
+
+    <p>The return value is still only a snapshot. Another thread may change the queue immediately after the method releases the lock.</p>
+
+    <h2 id="conditions">3. A condition is a lock plus a waiting room</h2>
+    <p>A <code>Condition</code> combines an underlying lock with a place where threads can sleep until shared state may have changed.</p>
+
+    <h3>Predicates are questions about state</h3>
+    <p>A predicate is simply an expression whose answer is true or false. For a bounded queue:</p>
+
+    <pre><code class="language-python"># Producer: is there room?
+len(items) &lt; capacity
+
+# Consumer: is there an item?
+len(items) &gt; 0</code></pre>
+
+    <p>A thread may proceed only when its own predicate is true.</p>
+
+    <h3>What <code>wait()</code> actually does</h3>
+    <p>A thread cannot sleep while keeping the lock: nobody else could acquire it to create the state being awaited. <code>condition.wait()</code> therefore:</p>
+
+    <ol>
+      <li>Releases the condition lock.</li>
+      <li>Blocks the calling thread.</li>
+      <li>Becomes eligible to wake after a notification or timeout.</li>
+      <li>Reacquires the lock before returning.</li>
+      <li>Lets the caller check its predicate again while protected.</li>
+    </ol>
+
+    <p>The mental translation is: <em>I cannot proceed in the current state. Let another thread change it, then let me check again.</em></p>
+
+    <h3>Why waiting uses <code>while</code>, not <code>if</code></h3>
+    <p>Suppose two consumers wait on an empty queue. A producer adds one item and wakes both. They do not enter the critical section simultaneously; they compete to reacquire the one lock. The winner removes the item. The second consumer eventually acquires the lock and finds the queue empty again.</p>
+
+    <pre><code class="language-python">while not self.items:
+    self.condition.wait()</code></pre>
+
+    <p>Notification means “something may have changed”, not “your predicate is now true”. A notification is also not stored for future waiters. Correctness lives in the shared state and predicate.</p>
+
+    <h3>The compact condition protocol</h3>
+    <ol>
+      <li>Acquire the lock.</li>
+      <li>Check the predicate in a loop.</li>
+      <li>Wait if the operation is not allowed.</li>
+      <li>Change the shared state.</li>
+      <li>Notify waiters after the change.</li>
+      <li>Release the lock.</li>
+    </ol>
+
+    <h2 id="lifecycle">4. Starting, joining and observing threads</h2>
+    <pre><code class="language-python">producer_thread = Thread(target=producer)
+consumer_thread = Thread(target=consumer)
+
+producer_thread.start()
+consumer_thread.start()
+
+producer_thread.join(timeout=2)
+consumer_thread.join(timeout=2)</code></pre>
+
+    <p>Constructing a <code>Thread</code> does not run its target. <code>start()</code> creates a separate execution path and returns without waiting for the target to finish. It does not promise whether the new worker or the calling thread gets the next scheduler turn.</p>
+
+    <pre><code class="language-python">Thread(target=producer)    # pass the function
+Thread(target=producer())  # call it now in the current thread: wrong shape</code></pre>
+
+    <p><code>join()</code> blocks the calling thread until the target thread terminates or the timeout expires. The name describes separate control-flow paths meeting again:</p>
+
+    <pre><code>main  ───── start worker ───── join(worker) ───── continue
+                 ╲                ╱
+worker            ─── do work ───</code></pre>
+
+    <p>A join timeout limits how long the caller waits. It neither cancels nor kills the worker. Since <code>join()</code> always returns <code>None</code>, tests inspect liveness separately:</p>
+
+    <pre><code class="language-python">worker.join(timeout=2)
+assert not worker.is_alive(), "worker is stuck"</code></pre>
+
+    <p>A sequential blocking-queue test can deadlock even when the queue is correct:</p>
+
+    <pre><code class="language-python">mailbox.put(1)
+mailbox.put(2)  # the only thread blocks here
+mailbox.get()   # never reached</code></pre>
+
+    <p>Releasing the lock inside <code>wait()</code> does not create another execution path. A complementary worker is still required.</p>
+
+    <h2 id="bounded">5. From a mailbox to a bounded queue</h2>
+    <p>A one-slot mailbox and a bounded queue use the same protocol. Only the producer predicate changes:</p>
+
+    <pre><code class="language-python">while len(self.items) == self.capacity:
+    self.condition.wait()</code></pre>
+
+    <p>A complete condition-based queue has a symmetric shape:</p>
+
+    <pre><code class="language-python">def put(self, item):
+    with self.condition:
+        while len(self.items) == self.capacity:
+            self.condition.wait()
+        self.items.append(item)
+        self.condition.notify_all()
+
+def get(self):
+    with self.condition:
+        while not self.items:
+            self.condition.wait()
+        item = self.items.popleft()
+        self.condition.notify_all()
+        return item</code></pre>
+
+    <p>Tests should verify promises the synchronization actually makes: every produced item arrives exactly once, no thread remains alive, and the final queue is empty. They should not invent a global ordering guarantee that the scheduler never promised.</p>
+
+    <h2 id="semaphores">6. Semaphores are counted permits</h2>
+    <p>A semaphore represents a number of available permits:</p>
+
+    <pre><code>acquire(): counter &gt; 0 → subtract one and proceed
+           counter = 0 → wait
+
+release(): add one and potentially wake a waiter</code></pre>
+
+    <p>The literal analogy is a car park handing out entry tokens. With three tokens, at most three cars may enter. Returning a token allows another car to proceed.</p>
+
+    <pre><code class="language-python">permits = Semaphore(2)
+
+assert permits.acquire(blocking=False) is True   # 2 → 1
+assert permits.acquire(blocking=False) is True   # 1 → 0
+assert permits.acquire(blocking=False) is False  # remains 0
+permits.release()                                # 0 → 1</code></pre>
+
+    <h3>Why a bounded queue uses two semaphores</h3>
+    <pre><code>empty_slots     starts at capacity
+available_items starts at 0</code></pre>
+
+    <p>A producer transfers one permit from empty slots to available items. A consumer performs the inverse:</p>
+
+    <pre><code>producer: acquire empty slot → append → release available item
+consumer: acquire item       → remove → release empty slot</code></pre>
+
+    <p>The counts are not safely derivable from each other during an in-flight operation. After a producer reserves a slot but before it appends, that slot is no longer available—but no consumable item exists yet. A permit is a reservation, not merely a report of deque length.</p>
+
+    <p>A separate lock still protects the deque. Semaphores control how many operations may proceed; they do not make a multi-step mutation mutually exclusive.</p>
+
+    <pre><code class="language-python">def put(self, item):
+    self.empty_slots.acquire()
+    with self.lock:
+        self.items.append(item)
+    self.available_items.release()</code></pre>
+
+    <p>Acquire the permit before the data lock. Waiting for a permit while holding the deque lock could prevent the complementary operation from acquiring that lock and creating the resource being awaited.</p>
+
+    <h2 id="state">7. Shutdown is a state transition</h2>
     <p>A blocking queue works because a temporarily impossible operation may become possible later:</p>
 
     <pre><code>full queue  → a consumer may create space
@@ -135,7 +360,7 @@ empty queue → a producer may publish an item</code></pre>
 
     <p>Calling <code>close()</code> repeatedly has the same effect as calling it once. This is <strong>idempotent</strong> behaviour.</p>
 
-    <h2 id="predicates">2. Waiting predicates now have two exits</h2>
+    <h2 id="predicates">8. Waiting predicates now have two exits</h2>
     <p>Before shutdown, a producer waits only for space. After shutdown exists, the loop must end for either of two reasons: space appeared, or the queue closed.</p>
 
     <pre><code class="language-python">while len(self.items) == self.capacity and not self.closed:
@@ -169,7 +394,7 @@ return item</code></pre>
 
     <div class="callout"><strong>Graceful shutdown</strong> means stopping new work while draining work that was already accepted. Immediate shutdown would be a different contract.</div>
 
-    <h2 id="wake">3. Closure must wake every waiter</h2>
+    <h2 id="wake">9. Closure must wake every waiter</h2>
     <p>A normal queue mutation may enable one complementary operation. Closure is different: it changes the meaning of waiting for every producer and every consumer.</p>
 
     <p>That is why <code>close()</code> uses <code>notify_all()</code>. Waking only one thread could leave the others asleep forever even though the queue will never change again.</p>
@@ -185,7 +410,7 @@ return item</code></pre>
 
     <p>A worker stops because its target function finishes—not because <code>close()</code> or <code>join()</code> forcibly terminates it.</p>
 
-    <h2 id="testing">4. Test safety, liveness and errors separately</h2>
+    <h2 id="testing">10. Test safety, liveness and errors separately</h2>
     <h3>Safety</h3>
     <p>Did an impossible state occur? Examples include exceeding capacity, losing or duplicating an item, or accepting a put after closure.</p>
 
@@ -203,7 +428,7 @@ assert not worker.is_alive(), "worker is stuck"</code></pre>
     <h3>Avoid correctness sleeps</h3>
     <p><code>sleep()</code> may make one scheduling order more likely, but it does not prove that a thread reached a desired state. Prefer explicit coordination when a test needs to establish that a worker started. Keep join timeouts as failure detectors, not as the mechanism that makes the test correct.</p>
 
-    <h2 id="exercise">5. Implementation exercise</h2>
+    <h2 id="exercise">11. Implementation exercise</h2>
     <p>Extend a condition-based <code>BoundedBlockingQueue</code> with the following contract:</p>
 
     <ul class="check">
@@ -219,6 +444,165 @@ assert not worker.is_alive(), "worker is stuck"</code></pre>
     </ul>
 
     <p>Use the existing <code>Condition</code>. Do not use an event, sentinel, standard-library queue or async runtime for this version—the point is to make the lifecycle predicates explicit.</p>
+
+    <h2 id="event">12. <code>Event</code>: a persistent one-way signal</h2>
+    <p>A <code>threading.Event</code> wraps a thread-safe boolean flag:</p>
+
+    <pre><code class="language-python">from threading import Event
+
+stop_requested = Event()        # initially false
+stop_requested.set()            # false → true; wake waiters
+stop_requested.is_set()         # inspect the flag
+stop_requested.wait(timeout=2)  # wait until true or timeout
+stop_requested.clear()          # true → false</code></pre>
+
+    <p>The mental model is a sign that can be raised. Once raised, current waiters and later callers of <code>wait()</code> can both see it. This differs from a condition notification, which is not remembered if nobody is waiting.</p>
+
+    <p>Events are useful for facts such as shutdown requested, configuration ready, or workers allowed to begin. They do not protect a deque, count resources, carry a result, or explain why work failed.</p>
+
+    <div class="callout">A stop event cannot help a worker that is blocked forever inside an unrelated <code>queue.get()</code>. The stop signal and blocking operation must form one coherent protocol—through queue closure, timeouts, or an agreed sentinel.</div>
+
+    <p>For a one-way stop signal, call <code>set()</code> once and normally never clear it. Rapidly setting and clearing introduces a protocol in which threads can miss the brief true state.</p>
+
+    <h2 id="barrier">13. <code>Barrier</code>: meet at a phase boundary</h2>
+    <p>A barrier is a rendezvous point for a fixed number of participants:</p>
+
+    <pre><code class="language-python">from threading import Barrier
+
+ready = Barrier(3, timeout=2)
+
+def worker():
+    prepare()
+    ready.wait()
+    perform_timed_phase()</code></pre>
+
+    <p>Every participant blocks at <code>wait()</code> until all three arrive; they are then released. This is useful for coordinated test starts or algorithms with discrete phases.</p>
+
+    <p>A condition waits for a predicate over changing shared state. A barrier waits for a fixed number of participants to reach a point. If one participant never arrives, the others can wait forever, so tests should use a timeout. A timeout or abort breaks the barrier and causes waiters to raise <code>BrokenBarrierError</code>.</p>
+
+    <h2 id="stdlib-queue">14. <code>queue.Queue</code>: the production version</h2>
+    <p>The standard library provides a synchronized multi-producer, multi-consumer queue:</p>
+
+    <pre><code class="language-python">from queue import Queue
+
+jobs = Queue(maxsize=2)
+jobs.put(job)     # block while full
+job = jobs.get()  # block while empty</code></pre>
+
+    <p>The custom condition-based queue remains valuable because implementing it reveals the invariant and waiting protocol. In application code, prefer <code>queue.Queue</code> unless a custom contract truly requires something else.</p>
+
+    <h3>Work retrieval is not work completion</h3>
+    <p><code>Queue</code> tracks unfinished work. Every <code>put()</code> increments an internal counter. A consumer calls <code>task_done()</code> only after processing the retrieved item:</p>
+
+    <pre><code class="language-python">def worker():
+    while True:
+        job = jobs.get()
+        try:
+            process(job)
+        finally:
+            jobs.task_done()
+
+jobs.join()  # wait for the unfinished-work count to reach zero</code></pre>
+
+    <pre><code>Thread.join() → wait for one thread's function to terminate
+Queue.join()  → wait for every put() to receive a task_done()</code></pre>
+
+    <p>Calling <code>task_done()</code> in <code>finally</code> avoids leaving <code>join()</code> blocked if processing raises. Modern Python also provides <code>Queue.shutdown()</code>, but it was added in Python 3.13; code targeting older environments cannot assume it exists.</p>
+
+    <p>Avoid check-then-act logic based on <code>empty()</code>, <code>full()</code>, or <code>qsize()</code>. Their answers are snapshots another thread may invalidate immediately. Express the desired behaviour through blocking <code>put()</code> and <code>get()</code>.</p>
+
+    <h2 id="pool">15. <code>ThreadPoolExecutor</code> and futures</h2>
+    <p>Creating raw threads gives direct control. A pool instead maintains a bounded set of reusable worker threads and accepts many tasks:</p>
+
+    <pre><code class="language-python">from concurrent.futures import ThreadPoolExecutor, as_completed
+
+with ThreadPoolExecutor(max_workers=4) as pool:
+    futures = [pool.submit(fetch_document, doc_id) for doc_id in ids]
+
+    for future in as_completed(futures):
+        document = future.result()</code></pre>
+
+    <p><code>submit()</code> returns quickly with a <code>Future</code>, which represents one result that may not exist yet:</p>
+
+    <pre><code>pending → running → completed with a value
+                  → completed with an exception</code></pre>
+
+    <p><code>future.result()</code> waits if necessary, returns the value, and re-raises the worker exception in the calling thread. That last behaviour makes pools easier to test than raw threads: <code>Thread.join()</code> does not propagate the target's exception.</p>
+
+    <p>Submission order does not imply completion order. Use <code>as_completed()</code> when results should be handled as they finish.</p>
+
+    <p>Leaving the executor’s <code>with</code> block shuts the pool down and waits for submitted work by default. It stops new submissions but does not forcibly kill running functions. Cancellation usually works only before a task starts, so long-running functions still need cooperative shutdown.</p>
+
+    <h3>A classic pool deadlock</h3>
+    <p>If every worker is occupied by a task waiting for another future scheduled onto the same exhausted pool, the missing task can never start. Avoid blocking pool workers on work that requires a free worker from that same pool.</p>
+
+    <p>For ordinary CPython builds, thread pools are especially useful for overlapping blocking I/O such as network calls. Pure Python CPU-bound work does not usually become faster merely by adding threads because of the global interpreter lock. That performance detail does not eliminate shared-state races.</p>
+
+    <h2 id="asyncio">16. The minimum viable <code>asyncio</code> model</h2>
+    <p>Async concurrency should begin with the event loop, not a web framework:</p>
+
+    <ol>
+      <li>A coroutine is declared with <code>async def</code> and can pause.</li>
+      <li>Calling it creates a coroutine object; the body does not run immediately.</li>
+      <li>An event loop drives coroutines.</li>
+      <li><code>await</code> pauses the current task at a cooperative scheduling point.</li>
+      <li><code>asyncio.create_task()</code> schedules a coroutine concurrently.</li>
+      <li><code>asyncio.run()</code> drives one top-level coroutine and closes the loop.</li>
+      <li><code>asyncio.Queue(maxsize=n)</code> offers async producer-consumer blocking.</li>
+    </ol>
+
+    <pre><code>threads: the runtime or operating system may pre-empt a thread
+asyncio: tasks normally switch cooperatively at await points</code></pre>
+
+    <p><code>time.sleep()</code> blocks the event-loop thread and prevents all of its tasks from progressing. <code>await asyncio.sleep()</code> suspends only the current task and allows the loop to run another.</p>
+
+    <pre><code class="language-python">import asyncio
+
+async def producer(queue):
+    for item in range(3):
+        await queue.put(item)
+
+async def consumer(queue):
+    for _ in range(3):
+        item = await queue.get()
+        try:
+            await process(item)
+        finally:
+            queue.task_done()
+
+async def main():
+    queue = asyncio.Queue(maxsize=2)
+    producer_task = asyncio.create_task(producer(queue))
+    consumer_task = asyncio.create_task(consumer(queue))
+    await asyncio.gather(producer_task, consumer_task)
+
+asyncio.run(main())</code></pre>
+
+    <p>Async locks, conditions and semaphores mirror the threading concepts but coordinate event-loop tasks, not operating-system threads:</p>
+
+    <pre><code class="language-python">lock = asyncio.Lock()
+
+async with lock:
+    ...
+
+await semaphore.acquire()
+semaphore.release()</code></pre>
+
+    <h2 id="checklist">17. Mental checklist for concurrent systems</h2>
+    <ol>
+      <li>What state is shared?</li>
+      <li>What invariant must always remain true?</li>
+      <li>Which lock protects every relevant check and mutation?</li>
+      <li>What predicate must be true for each kind of worker to proceed?</li>
+      <li>Does every waiter check that predicate in a <code>while</code> loop?</li>
+      <li>Is state changed before waiters are notified?</li>
+      <li>Can every blocked operation observe shutdown?</li>
+      <li>Could all workers wait for progress that requires another blocked worker?</li>
+      <li>Does the test check safety, liveness and worker errors separately?</li>
+      <li>Are timeouts used to detect hangs rather than manufacture correctness?</li>
+    </ol>
+
+    <div class="callout"><strong>The compact rule:</strong> protect the invariant, wait on explicit predicates, treat wake-ups as hints, publish terminal state under the same lock, and make every possible interleaving obey the contract.</div>
   </article>
 
   <footer>
