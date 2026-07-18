@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closing a Blocking Queue Without Stranding Threads — Max Khor</title>
+<meta name="description" content="A first-principles guide to graceful shutdown for a condition-based Python blocking queue, including predicates, wake-ups and concurrency tests.">
+<meta name="author" content="Max Khor">
+<link rel="canonical" href="https://maxkskhor.github.io/python-concurrency-queue-shutdown.html">
+<meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161310" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://maxkskhor.github.io/python-concurrency-queue-shutdown.html">
+<meta property="og:title" content="Closing a Blocking Queue Without Stranding Threads">
+<meta property="og:description" content="Graceful shutdown for a condition-based Python blocking queue, from predicates to tests.">
+<meta property="og:image" content="https://maxkskhor.github.io/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%231a1712'/%3E%3Ctext%20x='16'%20y='23'%20font-family='Georgia,serif'%20font-size='21'%20font-weight='700'%20text-anchor='middle'%20fill='%23c96a4a'%3EM%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..640;1,9..144,340..560&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f6f3ec;--panel:#eee8dc;--ink:#1a1712;--muted:#615a4e;
+    --faint:#8a8172;--rule:#d8d0c1;--accent:#9a3b2e;--code:#211e1a;
+    --code-ink:#f2eadf;--serif:"Fraunces","Iowan Old Style",Palatino,Georgia,serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--paper:#161310;--panel:#211c16;--ink:#efe8dc;--muted:#aea393;
+      --faint:#827767;--rule:#383127;--accent:#e39778;--code:#0d0c0a;
+      --code-ink:#eee7dc}
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);
+    font-size:clamp(17px,1vw + 14px,19px);line-height:1.68;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-underline-offset:.18em}
+  a:hover{text-decoration-thickness:2px}
+  code{font-family:var(--mono);font-size:.84em}
+  .page{width:min(100% - 2.5rem,760px);margin:0 auto;padding:2rem 0 5rem}
+  .back{font-family:var(--sans);font-size:.74rem;font-weight:650;letter-spacing:.12em;
+    text-transform:uppercase;text-decoration:none;color:var(--faint)}
+  header{padding:clamp(3rem,9vw,6.5rem) 0 2.2rem;border-bottom:3px double var(--ink)}
+  .eyebrow{font-family:var(--sans);font-size:.7rem;font-weight:650;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:1rem}
+  h1{font-size:clamp(2.65rem,9vw,5.5rem);font-weight:560;letter-spacing:-.035em;
+    line-height:.95;margin:0;max-width:12ch}
+  .dek{font-size:1.2rem;line-height:1.5;color:var(--muted);max-width:57ch;margin:1.5rem 0 0}
+  .meta{font-family:var(--sans);font-size:.72rem;color:var(--faint);margin-top:1.35rem}
+  .route{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+    padding:1.25rem 1.35rem;margin:2rem 0 3rem}
+  .route strong{font-family:var(--sans);font-size:.73rem;text-transform:uppercase;
+    letter-spacing:.13em;color:var(--accent)}
+  .route ol{margin:.6rem 0 0;padding-left:1.25rem}
+  .route li{margin:.25rem 0}
+  article h2{font-size:clamp(1.8rem,5vw,2.55rem);line-height:1.12;font-weight:560;
+    letter-spacing:-.018em;margin:3.7rem 0 1rem;padding-top:.5rem}
+  article h3{font-family:var(--sans);font-size:1rem;line-height:1.35;margin:2.3rem 0 .65rem}
+  article p{margin:.9rem 0}
+  article ul,article ol{padding-left:1.35rem}
+  article li{margin:.42rem 0}
+  .state{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);
+    border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:1.5rem 0}
+  .state div{background:var(--panel);padding:1.1rem}
+  .state b{font-family:var(--sans);font-size:.76rem;letter-spacing:.12em;color:var(--accent)}
+  .state p{margin:.35rem 0 0;font-size:.95rem;color:var(--muted)}
+  pre{background:var(--code);color:var(--code-ink);padding:1.15rem 1.2rem;
+    border-radius:10px;overflow-x:auto;line-height:1.55;margin:1.25rem 0;
+    -webkit-overflow-scrolling:touch}
+  pre code{font-size:.78rem}
+  .callout{border-left:3px solid var(--accent);padding:.2rem 0 .2rem 1.1rem;
+    color:var(--muted);margin:1.6rem 0}
+  .check{list-style:none;padding:0}
+  .check li{padding:.72rem 0 .72rem 1.75rem;border-bottom:1px solid var(--rule);position:relative}
+  .check li::before{content:"□";position:absolute;left:0;color:var(--accent);font-family:var(--sans)}
+  footer{border-top:3px double var(--ink);margin-top:4rem;padding-top:1.2rem;
+    display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+    font-family:var(--sans);font-size:.74rem;color:var(--faint)}
+  @media (max-width:560px){
+    .page{width:min(100% - 2rem,760px);padding-top:1.25rem}
+    .state{grid-template-columns:1fr}
+    pre{margin-left:-.25rem;margin-right:-.25rem;padding:1rem;border-radius:8px}
+  }
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<main class="page">
+  <a class="back" href="index.html">← Max Khor</a>
+
+  <header>
+    <div class="eyebrow">Python concurrency · field note 01</div>
+    <h1>Closing a blocking queue without stranding threads</h1>
+    <p class="dek">A queue is easy to block when progress may come later. The harder question is what waiting should mean when no future work can arrive.</p>
+    <div class="meta">Max Khor · July 2026 · 10 minute read</div>
+  </header>
+
+  <nav class="route" aria-label="Article contents">
+    <strong>Reading route</strong>
+    <ol>
+      <li><a href="#state">Shutdown as state</a></li>
+      <li><a href="#predicates">Predicates after closure</a></li>
+      <li><a href="#wake">Why every waiter wakes</a></li>
+      <li><a href="#testing">Testing safety and progress</a></li>
+      <li><a href="#exercise">Implementation exercise</a></li>
+    </ol>
+  </nav>
+
+  <article>
+    <h2 id="state">1. Shutdown is a state transition</h2>
+    <p>A blocking queue works because a temporarily impossible operation may become possible later:</p>
+
+    <pre><code>full queue  → a consumer may create space
+empty queue → a producer may publish an item</code></pre>
+
+    <p>Shutdown removes that promise. If an empty queue is permanently closed, a consumer must not wait for an item that can never arrive. A producer already waiting for space must also wake and learn that new work is no longer accepted.</p>
+
+    <div class="state">
+      <div><b>OPEN</b><p><code>put()</code> may add work. <code>get()</code> may wait for work.</p></div>
+      <div><b>CLOSED</b><p><code>put()</code> fails. <code>get()</code> drains accepted work, then fails.</p></div>
+    </div>
+
+    <p>The important new shared state is therefore a lifecycle flag. It belongs under the same condition lock that protects the queue:</p>
+
+    <pre><code class="language-python">def close(self) -&gt; None:
+    with self.condition:
+        if self.closed:
+            return
+
+        self.closed = True
+        self.condition.notify_all()</code></pre>
+
+    <p>Calling <code>close()</code> repeatedly has the same effect as calling it once. This is <strong>idempotent</strong> behaviour.</p>
+
+    <h2 id="predicates">2. Waiting predicates now have two exits</h2>
+    <p>Before shutdown, a producer waits only for space. After shutdown exists, the loop must end for either of two reasons: space appeared, or the queue closed.</p>
+
+    <pre><code class="language-python">while len(self.items) == self.capacity and not self.closed:
+    self.condition.wait()
+
+if self.closed:
+    raise QueueClosed
+
+self.items.append(item)
+self.condition.notify_all()</code></pre>
+
+    <p>The check after the loop matters. Waking does not prove that the producer received space; it may mean closure made waiting pointless.</p>
+
+    <h3>The consumer has a different rule</h3>
+    <p>Closure should not discard work already accepted. A consumer waits only while the queue is both empty and open:</p>
+
+    <pre><code class="language-python">while not self.items and not self.closed:
+    self.condition.wait()
+
+if not self.items:
+    raise QueueClosed
+
+item = self.items.popleft()
+self.condition.notify_all()
+return item</code></pre>
+
+    <ul>
+      <li>If an item exists, return it even when the queue is closed.</li>
+      <li>If no item exists, the loop can have ended because closure means no future item can arrive.</li>
+    </ul>
+
+    <div class="callout"><strong>Graceful shutdown</strong> means stopping new work while draining work that was already accepted. Immediate shutdown would be a different contract.</div>
+
+    <h2 id="wake">3. Closure must wake every waiter</h2>
+    <p>A normal queue mutation may enable one complementary operation. Closure is different: it changes the meaning of waiting for every producer and every consumer.</p>
+
+    <p>That is why <code>close()</code> uses <code>notify_all()</code>. Waking only one thread could leave the others asleep forever even though the queue will never change again.</p>
+
+    <p>Closure still does not kill threads. It is a cooperative protocol:</p>
+
+    <ol>
+      <li>One thread publishes the terminal state.</li>
+      <li>Blocked workers wake and reacquire the condition lock one at a time.</li>
+      <li>Each worker re-checks its predicate and returns or raises.</li>
+      <li>The coordinating thread joins the workers.</li>
+    </ol>
+
+    <p>A worker stops because its target function finishes—not because <code>close()</code> or <code>join()</code> forcibly terminates it.</p>
+
+    <h2 id="testing">4. Test safety, liveness and errors separately</h2>
+    <h3>Safety</h3>
+    <p>Did an impossible state occur? Examples include exceeding capacity, losing or duplicating an item, or accepting a put after closure.</p>
+
+    <h3>Liveness</h3>
+    <p>Did every worker eventually make progress and terminate?</p>
+
+    <pre><code class="language-python">worker.join(timeout=2)
+assert not worker.is_alive(), "worker is stuck"</code></pre>
+
+    <p>The timeout detects a hang. It does not kill the worker.</p>
+
+    <h3>Error visibility</h3>
+    <p>An exception in a raw worker thread does not automatically propagate through <code>Thread.join()</code>. A small test can catch worker exceptions into a result list that the main thread inspects after joining.</p>
+
+    <h3>Avoid correctness sleeps</h3>
+    <p><code>sleep()</code> may make one scheduling order more likely, but it does not prove that a thread reached a desired state. Prefer explicit coordination when a test needs to establish that a worker started. Keep join timeouts as failure detectors, not as the mechanism that makes the test correct.</p>
+
+    <h2 id="exercise">5. Implementation exercise</h2>
+    <p>Extend a condition-based <code>BoundedBlockingQueue</code> with the following contract:</p>
+
+    <ul class="check">
+      <li>Add a small <code>QueueClosed</code> exception.</li>
+      <li>Add lifecycle state protected by the existing condition lock.</li>
+      <li>Make <code>close()</code> idempotent.</li>
+      <li>Reject every new <code>put()</code> after closure.</li>
+      <li>Wake producers that were blocked on a full queue.</li>
+      <li>Let consumers drain items accepted before closure.</li>
+      <li>Make <code>get()</code> fail once the closed queue is empty.</li>
+      <li>Wake consumers that were blocked on an empty queue.</li>
+      <li>Test blocked producer, blocked consumer, draining and repeated closure with bounded joins.</li>
+    </ul>
+
+    <p>Use the existing <code>Condition</code>. Do not use an event, sentinel, standard-library queue or async runtime for this version—the point is to make the lifecycle predicates explicit.</p>
+  </article>
+
+  <footer>
+    <span>© 2026 Max Khor</span>
+    <span><a href="index.html">Home</a> · <a href="https://github.com/maxkskhor">GitHub</a></span>
+  </footer>
+</main>
+</body>
+</html>
