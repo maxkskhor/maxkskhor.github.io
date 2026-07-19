@@ -581,6 +581,39 @@ with ThreadPoolExecutor(max_workers=4) as pool:
 
     <p>Submission order does not imply completion order. Use <code>as_completed()</code> when results should be handled as they finish.</p>
 
+    <pre><code>submission order → when submit() is called
+start order      → when a worker thread begins the call
+completion order → when the call returns or raises</code></pre>
+
+    <p>When a result or exception must be associated with its original input,
+    retain an explicit mapping from each future to that input:</p>
+
+    <pre><code class="language-python">future_to_value = {}
+
+for value in values:
+    future = pool.submit(process, value)
+    future_to_value[future] = value
+
+for future in as_completed(future_to_value):
+    value = future_to_value[future]
+    try:
+        processed = future.result()
+    except Exception as exc:
+        errors.append((value, exc))
+    else:
+        results.append((value, processed))</code></pre>
+
+    <p>Iterating over a dictionary yields its keys, so no separate list of
+    futures is needed here. The mapping is especially useful when
+    <code>future.result()</code> raises: there is no returned value to identify
+    the failed input, but the future still selects the original input from the
+    dictionary.</p>
+
+    <p>The workers execute only <code>process()</code>. The coordinator thread
+    runs the <code>as_completed()</code> loop and is the only writer to the
+    result and error lists, so those lists need no additional lock in this
+    pattern.</p>
+
     <p>Leaving the executor’s <code>with</code> block shuts the pool down and waits for submitted work by default. It stops new submissions but does not forcibly kill running functions. Cancellation usually works only before a task starts, so long-running functions still need cooperative shutdown.</p>
 
     <h3>A classic pool deadlock</h3>
