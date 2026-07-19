@@ -665,6 +665,45 @@ asyncio.run(main())</code></pre>
     the running task gives control back to the event loop. The loop can then
     choose another ready task.</p>
 
+    <h3><code>main</code> can wait while the event loop continues</h3>
+
+    <p><code>main</code> and the event loop are different things. The event loop
+    is the scheduler. <code>main</code> is one task managed by that scheduler.
+    When <code>main</code> reaches <code>await task_a</code>, only
+    <code>main</code> is suspended. A and B remain eligible to run.</p>
+
+    <pre><code>running: main
+ready:   A, B
+
+main reaches await task_a
+waiting: main (for A)
+ready:   A, B
+
+loop runs A → A awaits its timer → A waits
+loop runs B → B awaits its timer → B waits
+B finishes first
+A finishes and makes main ready
+main resumes; awaiting the already-finished B returns immediately</code></pre>
+
+    <p><code>create_task()</code> registers a coroutine with the running event
+    loop and makes it eligible to run, then returns. It does not normally
+    interrupt the current task and execute the new task's body immediately.
+    The current task must finish or reach an incomplete <code>await</code> before
+    the loop gets another scheduling turn.</p>
+
+    <p>An incomplete <code>await</code> pauses the current task without
+    occupying the event-loop thread. If the awaited operation is already
+    complete, it can return immediately without a task switch.</p>
+
+    <pre><code>Thread.join() → pause the calling thread until another thread terminates
+await task    → pause the current task while the event loop runs other tasks</code></pre>
+
+    <p>Awaiting a task also returns its result or re-raises its exception.
+    <code>Thread.join()</code> returns <code>None</code> and does not propagate
+    the target function's exception. Use
+    <code>await asyncio.wait_for(task, timeout)</code> when an asynchronous wait
+    needs a timeout.</p>
+
     <h3>Why blocking calls freeze the loop</h3>
 
     <p><code>time.sleep(1)</code> occupies the event-loop thread for one second.
@@ -714,6 +753,51 @@ asyncio.run(main())</code></pre>
     queue slots, so it suspends. The event loop runs the consumer. Once the
     consumer removes an item, the producer becomes ready and completes the
     third <code>put</code>.</p>
+
+    <h3>Why <code>task_done()</code> and <code>queue.join()</code> both exist</h3>
+
+    <p>The queue tracks an unfinished-work count. Every successful
+    <code>put()</code> increments it. <code>get()</code> removes and assigns an
+    item but leaves the count unchanged: the queue cannot tell when the
+    consumer has finished processing that item.</p>
+
+    <pre><code>put()       opens a work ticket
+get()       assigns the ticket
+task_done() closes the ticket
+join()      waits until no tickets remain open</code></pre>
+
+    <p><code>task_done()</code> is completion bookkeeping, not memory cleanup.
+    It acknowledges that one item added by an earlier <code>put()</code> has
+    been completely handled. In real processing code, place it in
+    <code>finally</code>:</p>
+
+    <pre><code class="language-python">item = await queue.get()
+try:
+    await process(item)
+finally:
+    queue.task_done()</code></pre>
+
+    <p>Forgetting the acknowledgement can leave <code>queue.join()</code>
+    waiting forever. Calling it before processing finishes can let
+    <code>join()</code> return too early. Calling it more times than items were
+    added raises <code>ValueError</code>.</p>
+
+    <p><code>await queue.join()</code> waits for the unfinished count to reach
+    zero. It does not merely wait for the queue's container to become empty. A
+    consumer may have removed the final item and still be processing it.</p>
+
+    <h3>Why the three waits have this order</h3>
+
+    <pre><code class="language-python">await producer_task  # all work has been submitted
+await queue.join()   # all submitted work has been acknowledged
+await consumer_task  # the consumer terminated; propagate any exception</code></pre>
+
+    <p>Waiting for the producer before joining the queue ensures that all work
+    has first been submitted. If <code>queue.join()</code> runs while the
+    unfinished count is still zero, it can return before the producer adds
+    anything. The producer and consumer still run concurrently while
+    <code>main</code> awaits the producer, because both tasks were scheduled
+    before that await.</p>
 
     <div class="callout"><strong>Stop here for the first pass.</strong> You
     should be able to explain the event loop, coroutine object, task, and
