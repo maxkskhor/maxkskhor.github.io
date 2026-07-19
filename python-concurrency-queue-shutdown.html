@@ -718,6 +718,93 @@ await task    → pause the current task while the event loop runs other tasks</
     queue is full. An incomplete <code>await queue.get()</code> suspends a
     consumer when the queue is empty.</p>
 
+    <h3>First understand the unfinished-work counter</h3>
+
+    <p>A queue contains more state than its stored items. It also maintains an
+    integer called the <strong>unfinished-work counter</strong>. It starts at
+    zero. Every successful <code>put()</code> adds one. <code>get()</code>
+    removes and assigns an item but leaves this counter unchanged, because the
+    queue cannot know when the consumer has finished processing it.</p>
+
+    <pre><code class="language-python">unfinished = 0
+finished_event = set
+
+put(item):
+    store item
+    unfinished += 1
+    clear finished_event
+
+task_done():
+    if unfinished &lt;= 0:
+        raise ValueError
+    unfinished -= 1
+    if unfinished == 0:
+        set finished_event
+
+join():
+    if unfinished &gt; 0:
+        await finished_event</code></pre>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Operation</th><th>Stored items</th><th>Unfinished</th></tr></thead>
+        <tbody>
+          <tr><td><code>put(A)</code></td><td><code>[A]</code></td><td>1</td></tr>
+          <tr><td><code>put(B)</code></td><td><code>[A, B]</code></td><td>2</td></tr>
+          <tr><td><code>get() → A</code></td><td><code>[B]</code></td><td>2</td></tr>
+          <tr><td><code>task_done()</code> for A</td><td><code>[B]</code></td><td>1</td></tr>
+          <tr><td><code>get() → B</code></td><td><code>[]</code></td><td>1</td></tr>
+          <tr><td><code>task_done()</code> for B</td><td><code>[]</code></td><td>0; join may resume</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <pre><code>put()       opens a work ticket
+get()       assigns the ticket
+task_done() closes the ticket
+join()      waits until no tickets remain open</code></pre>
+
+    <p><code>task_done()</code> is completion bookkeeping, not memory cleanup.
+    In real processing code, acknowledge an item after processing, including
+    when processing raises:</p>
+
+    <pre><code class="language-python">item = await queue.get()
+try:
+    await process(item)
+finally:
+    queue.task_done()</code></pre>
+
+    <p>If an acknowledgement is missing, the unfinished count remains above
+    zero and <code>queue.join()</code> keeps waiting. Calling
+    <code>task_done()</code> too early can let <code>join()</code> return while
+    work is still running. Calling it when the counter is already zero raises
+    <code>ValueError</code>, preventing the completion ledger from becoming
+    negative. The counter is global: Python does not tie each call to a
+    particular retrieved item, so early acknowledgement remains a logic bug
+    even when no exception is raised.</p>
+
+    <p><code>await queue.join()</code> waits for the unfinished counter to reach
+    zero. It does not wait merely for the item container to become empty. A
+    consumer may have removed the final item and still be processing it.</p>
+
+    <h3>How this differs from a semaphore</h3>
+
+    <p>The two mechanisms both use counters and wake waiters, but they answer
+    different questions:</p>
+
+    <pre><code>Semaphore.acquire() → wait for a permit, then decrement permits
+Semaphore.release() → increment permits and possibly wake a waiter
+
+Queue.put()          → increment unfinished work
+Queue.task_done()    → decrement unfinished work; never waits
+Queue.join()         → wait for unfinished work to become zero</code></pre>
+
+    <p>The unfinished-work mechanism is closer to a countdown latch or a
+    completion ledger. Queue capacity is separate: <code>put()</code> uses the
+    stored-item count to wait when the queue is full.</p>
+
+    <h3>Complete producer-consumer example</h3>
+
     <pre><code class="language-python">import asyncio
 
 
@@ -753,38 +840,6 @@ asyncio.run(main())</code></pre>
     queue slots, so it suspends. The event loop runs the consumer. Once the
     consumer removes an item, the producer becomes ready and completes the
     third <code>put</code>.</p>
-
-    <h3>Why <code>task_done()</code> and <code>queue.join()</code> both exist</h3>
-
-    <p>The queue tracks an unfinished-work count. Every successful
-    <code>put()</code> increments it. <code>get()</code> removes and assigns an
-    item but leaves the count unchanged: the queue cannot tell when the
-    consumer has finished processing that item.</p>
-
-    <pre><code>put()       opens a work ticket
-get()       assigns the ticket
-task_done() closes the ticket
-join()      waits until no tickets remain open</code></pre>
-
-    <p><code>task_done()</code> is completion bookkeeping, not memory cleanup.
-    It acknowledges that one item added by an earlier <code>put()</code> has
-    been completely handled. In real processing code, place it in
-    <code>finally</code>:</p>
-
-    <pre><code class="language-python">item = await queue.get()
-try:
-    await process(item)
-finally:
-    queue.task_done()</code></pre>
-
-    <p>Forgetting the acknowledgement can leave <code>queue.join()</code>
-    waiting forever. Calling it before processing finishes can let
-    <code>join()</code> return too early. Calling it more times than items were
-    added raises <code>ValueError</code>.</p>
-
-    <p><code>await queue.join()</code> waits for the unfinished count to reach
-    zero. It does not merely wait for the queue's container to become empty. A
-    consumer may have removed the final item and still be processing it.</p>
 
     <h3>Why the three waits have this order</h3>
 
