@@ -921,6 +921,31 @@ await consumer_task  # the consumer terminated; propagate any exception</code></
     <code>queue.join()</code>, send a sentinel or cancel according to the
     contract, and then await the worker task.</p>
 
+    <h3>Understanding checkpoint</h3>
+
+    <p>The foundation is in place when each statement below can be explained
+    without looking at the implementation:</p>
+
+    <ul>
+      <li>The event loop is the scheduler; <code>main</code> is one task managed
+        by it.</li>
+      <li><code>create_task()</code> makes a coroutine eligible to run but does
+        not synchronously execute its body at the call site.</li>
+      <li>An incomplete <code>await</code> suspends only the current task, so the
+        loop can run another ready task.</li>
+      <li><code>time.sleep()</code> occupies the event-loop thread, while
+        <code>await asyncio.sleep()</code> yields it.</li>
+      <li>Queue length and unfinished work are different state.</li>
+      <li><code>put()</code> opens a work ticket, <code>get()</code> assigns it,
+        <code>task_done()</code> closes it, and <code>join()</code> waits for no
+        open tickets.</li>
+      <li>The queue's finished event wakes <code>join()</code> waiters when
+        unfinished work reaches zero; it does not mean a consumer coroutine
+        terminated.</li>
+      <li>Awaiting the consumer separately verifies its termination and
+        propagates its result or exception.</li>
+    </ul>
+
     <div class="callout"><strong>Stop here for the first pass.</strong> You
     should be able to explain the event loop, coroutine object, task, and
     incomplete <code>await</code> before adding cancellation, async locks, or a
