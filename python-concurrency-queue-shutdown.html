@@ -65,6 +65,9 @@
   article p{margin:.9rem 0}
   article ul,article ol{padding-left:1.35rem}
   article li{margin:.42rem 0}
+  article dl{margin:1.2rem 0}
+  article dt{font-family:var(--sans);margin-top:1rem}
+  article dd{margin:.2rem 0 0;color:var(--muted)}
   .state{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);
     border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:1.5rem 0}
   .state div{background:var(--panel);padding:1.1rem}
@@ -74,6 +77,14 @@
     border-radius:10px;overflow-x:auto;line-height:1.55;margin:1.25rem 0;
     -webkit-overflow-scrolling:touch}
   pre code{font-size:.78rem}
+  .table-wrap{overflow-x:auto;margin:1.4rem 0;border:1px solid var(--rule);
+    border-radius:10px;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;min-width:620px;font-family:var(--sans);
+    font-size:.78rem}
+  th{text-align:left;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;
+    background:var(--panel);font-size:.68rem}
+  th,td{padding:.7rem .75rem;border-bottom:1px solid var(--rule);vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
   .callout{border-left:3px solid var(--accent);padding:.2rem 0 .2rem 1.1rem;
     color:var(--muted);margin:1.6rem 0}
   .check{list-style:none;padding:0}
@@ -538,55 +549,176 @@ with ThreadPoolExecutor(max_workers=4) as pool:
 
     <p>For ordinary CPython builds, thread pools are especially useful for overlapping blocking I/O such as network calls. Pure Python CPU-bound work does not usually become faster merely by adding threads because of the global interpreter lock. That performance detail does not eliminate shared-state races.</p>
 
-    <h2 id="asyncio">16. The minimum viable <code>asyncio</code> model</h2>
-    <p>Async concurrency should begin with the event loop, not a web framework:</p>
+    <h2 id="asyncio">16. How the <code>asyncio</code> event loop runs two tasks</h2>
+
+    <h3>Start with the event loop</h3>
+    <p>An event loop is a loop in the literal programming sense. It runs on one
+    thread and repeatedly does three jobs:</p>
 
     <ol>
-      <li>A coroutine is declared with <code>async def</code> and can pause.</li>
-      <li>Calling it creates a coroutine object; the body does not run immediately.</li>
-      <li>An event loop drives coroutines.</li>
-      <li><code>await</code> pauses the current task at a cooperative scheduling point.</li>
-      <li><code>asyncio.create_task()</code> schedules a coroutine concurrently.</li>
-      <li><code>asyncio.run()</code> drives one top-level coroutine and closes the loop.</li>
-      <li><code>asyncio.Queue(maxsize=n)</code> offers async producer-consumer blocking.</li>
+      <li>Choose a task that is ready to run.</li>
+      <li>Run that task until it finishes or reaches an incomplete
+        <code>await</code>.</li>
+      <li>When a timer or I/O operation completes, make the associated task
+        ready again.</li>
     </ol>
 
-    <pre><code>threads: the runtime or operating system may pre-empt a thread
-asyncio: tasks normally switch cooperatively at await points</code></pre>
+    <pre><code>ready tasks: [main]
 
-    <p><code>time.sleep()</code> blocks the event-loop thread and prevents all of its tasks from progressing. <code>await asyncio.sleep()</code> suspends only the current task and allows the loop to run another.</p>
+event loop chooses main
+main runs until it must wait
+event loop chooses another ready task
+...
+all requested work finishes</code></pre>
+
+    <p>The loop has one Python instruction stream. Each turn belongs to one
+    ready task. A task that suspends leaves the next turn available for another
+    ready task.</p>
+
+    <h3>Four names used by the API</h3>
+
+    <dl>
+      <dt><strong>Coroutine function</strong></dt>
+      <dd>A function declared with <code>async def</code>.</dd>
+      <dt><strong>Coroutine object</strong></dt>
+      <dd>The value created when a coroutine function is called. The event loop
+        begins executing its body after the coroutine is scheduled.</dd>
+      <dt><strong>Task</strong></dt>
+      <dd>A coroutine object registered with the event loop so that the loop
+        can run it. <code>asyncio.create_task()</code> creates a task.</dd>
+      <dt><strong>Await</strong></dt>
+      <dd>Ask an asynchronous operation for its result. If the result is not
+        ready, the current task is suspended and the loop may run another ready
+        task. If the result is already ready, execution can continue
+        immediately.</dd>
+    </dl>
+
+    <h3>First complete program</h3>
 
     <pre><code class="language-python">import asyncio
 
-async def producer(queue):
-    for item in range(3):
-        await queue.put(item)
 
-async def consumer(queue):
-    for _ in range(3):
-        item = await queue.get()
-        try:
-            await process(item)
-        finally:
-            queue.task_done()
+async def worker(name: str, delay: float) -&gt; None:
+    print(name, "started")
+    await asyncio.sleep(delay)
+    print(name, "resumed after its timer")
 
-async def main():
-    queue = asyncio.Queue(maxsize=2)
-    producer_task = asyncio.create_task(producer(queue))
-    consumer_task = asyncio.create_task(consumer(queue))
-    await asyncio.gather(producer_task, consumer_task)
+
+async def main() -&gt; None:
+    print("main started")
+
+    task_a = asyncio.create_task(worker("A", 0.2))
+    task_b = asyncio.create_task(worker("B", 0.1))
+
+    print("main created both tasks")
+
+    await task_a
+    await task_b
+
+    print("main finished")
+
 
 asyncio.run(main())</code></pre>
 
-    <p>Async locks, conditions and semaphores mirror the threading concepts but coordinate event-loop tasks, not operating-system threads:</p>
+    <p><code>asyncio.run(main())</code> creates an event loop, gives it the
+    <code>main()</code> coroutine, runs the loop until <code>main</code>
+    finishes, and then closes the loop.</p>
 
-    <pre><code class="language-python">lock = asyncio.Lock()
+    <h3>One execution trace</h3>
 
-async with lock:
-    ...
+    <p>A and B are both ready after creation. The table shows the order produced
+    by this run. Code should not rely on the start order of equally ready tasks;
+    the timer values make B's completion occur first after both timers have
+    been registered.</p>
 
-await semaphore.acquire()
-semaphore.release()</code></pre>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Step</th><th>Running task</th><th>What happens</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><code>main</code></td><td>Prints
+            <code>main started</code>.</td></tr>
+          <tr><td>2</td><td><code>main</code></td><td>Creates tasks A and B.
+            They are now eligible to run.</td></tr>
+          <tr><td>3</td><td><code>main</code></td><td>Reaches
+            <code>await task_a</code>. A has not finished, so main is
+            suspended.</td></tr>
+          <tr><td>4</td><td>A</td><td>Prints <code>A started</code>, registers a
+            0.2-second timer, and suspends.</td></tr>
+          <tr><td>5</td><td>B</td><td>Prints <code>B started</code>, registers a
+            0.1-second timer, and suspends.</td></tr>
+          <tr><td>6</td><td>event loop</td><td>No task can progress until a
+            timer becomes ready.</td></tr>
+          <tr><td>7</td><td>B</td><td>B's timer completes first. B becomes ready,
+            resumes, prints, and finishes.</td></tr>
+          <tr><td>8</td><td>A</td><td>A's timer completes. A resumes, prints, and
+            finishes.</td></tr>
+          <tr><td>9</td><td><code>main</code></td><td>The awaited A task is done.
+            Awaiting B returns immediately because B is also done. Main
+            finishes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The important transition occurs at an incomplete <code>await</code>:
+    the running task gives control back to the event loop. The loop can then
+    choose another ready task.</p>
+
+    <h3>Why blocking calls freeze the loop</h3>
+
+    <p><code>time.sleep(1)</code> occupies the event-loop thread for one second.
+    During that second the loop cannot choose another task.
+    <code>await asyncio.sleep(1)</code> registers a timer and suspends the
+    current task, leaving the loop free to run other ready tasks.</p>
+
+    <h3>Then add an asynchronous queue</h3>
+
+    <p>An <code>asyncio.Queue</code> uses the same event-loop mechanism. An
+    incomplete <code>await queue.put(item)</code> suspends a producer when the
+    queue is full. An incomplete <code>await queue.get()</code> suspends a
+    consumer when the queue is empty.</p>
+
+    <pre><code class="language-python">import asyncio
+
+
+async def producer(queue: asyncio.Queue) -&gt; None:
+    for item in [1, 2, 3]:
+        print("producer wants to put", item)
+        await queue.put(item)
+        print("producer put", item)
+
+
+async def consumer(queue: asyncio.Queue) -&gt; None:
+    for _ in range(3):
+        await asyncio.sleep(0.1)
+        item = await queue.get()
+        print("consumer got", item)
+        queue.task_done()
+
+
+async def main() -&gt; None:
+    queue = asyncio.Queue(maxsize=2)
+
+    producer_task = asyncio.create_task(producer(queue))
+    consumer_task = asyncio.create_task(consumer(queue))
+
+    await producer_task
+    await queue.join()
+    await consumer_task
+
+
+asyncio.run(main())</code></pre>
+
+    <p>Trace the third <code>put</code>. The producer has already filled both
+    queue slots, so it suspends. The event loop runs the consumer. Once the
+    consumer removes an item, the producer becomes ready and completes the
+    third <code>put</code>.</p>
+
+    <div class="callout"><strong>Stop here for the first pass.</strong> You
+    should be able to explain the event loop, coroutine object, task, and
+    incomplete <code>await</code> before adding cancellation, async locks, or a
+    framework.</div>
 
     <h2 id="checklist">17. Mental checklist for concurrent systems</h2>
     <ol>
