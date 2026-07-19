@@ -784,6 +784,18 @@ join():
     if unfinished &gt; 0:
         await finished_event</code></pre>
 
+    <p><code>finished_event</code> is an internal
+    <code>asyncio.Event</code>: a persistent boolean signal with a set of
+    waiting tasks. The queue creates it in the set state because zero jobs are
+    initially unfinished. A successful <code>put()</code> clears it. The
+    <code>task_done()</code> call that reduces the counter to zero sets it
+    again, waking every task currently waiting in <code>join()</code>. Future
+    calls to <code>join()</code> return immediately while it remains set.</p>
+
+    <p>The signal means that all work currently represented by the counter has
+    been acknowledged. It does not mean that a producer or consumer coroutine
+    has returned. A later <code>put()</code> can clear the signal again.</p>
+
     <div class="table-wrap">
       <table>
         <thead><tr><th>Operation</th><th>Stored items</th><th>Unfinished</th></tr></thead>
@@ -892,6 +904,22 @@ await consumer_task  # the consumer terminated; propagate any exception</code></
     anything. The producer and consumer still run concurrently while
     <code>main</code> awaits the producer, because both tasks were scheduled
     before that await.</p>
+
+    <p><code>queue.join()</code> cannot replace
+    <code>await consumer_task</code> because the queue does not own or observe
+    that coroutine's lifecycle. Immediately after its final
+    <code>task_done()</code>, the consumer may still need to leave its loop,
+    perform cleanup, or raise an exception. A long-running consumer may
+    acknowledge the last item and then wait for another item forever. Awaiting
+    the task proves that the consumer coroutine returned and propagates any
+    exception it raised.</p>
+
+    <p>In this fixed three-item example, the final acknowledgement occurs just
+    before the consumer returns, so the two events happen close together and
+    the final await mainly makes the lifecycle check explicit. A long-running
+    worker normally needs a separate shutdown step: wait for
+    <code>queue.join()</code>, send a sentinel or cancel according to the
+    contract, and then await the worker task.</p>
 
     <div class="callout"><strong>Stop here for the first pass.</strong> You
     should be able to explain the event loop, coroutine object, task, and
