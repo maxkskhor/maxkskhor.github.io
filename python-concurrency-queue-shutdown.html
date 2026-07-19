@@ -965,6 +965,37 @@ main observes the cancellation</code></pre>
     pending request is likewise normally delivered only when the task next
     reaches a suspension point.</p>
 
+    <h3>A timeout uses cancellation internally</h3>
+
+    <p><code>asyncio.wait_for(worker(), timeout=0.1)</code> applies a deadline
+    around an awaited operation. When the deadline expires,
+    <code>wait_for()</code> requests cancellation of the worker and waits for
+    that cancellation to finish. The two layers observe different exceptions:</p>
+
+    <pre><code>inside worker:   CancelledError
+outside wait_for: TimeoutError</code></pre>
+
+    <pre><code>worker starts
+the 0.1-second deadline expires
+wait_for requests worker cancellation
+CancelledError interrupts the worker's sleep
+the worker's finally block performs cleanup
+wait_for observes completed cancellation
+wait_for raises TimeoutError to main</code></pre>
+
+    <p>The resulting output is:</p>
+
+    <pre><code>worker: started
+worker: cleanup
+main: timed out
+main: finished</code></pre>
+
+    <p>Cancellation is the mechanism used to stop the overdue operation.
+    <code>TimeoutError</code> is the API result presented to the caller that
+    established the deadline. Since Python 3.11 this is the built-in
+    <code>TimeoutError</code>; older versions raised
+    <code>asyncio.TimeoutError</code>.</p>
+
     <h3>Understanding checkpoint</h3>
 
     <p>The foundation is in place when each statement below can be explained
