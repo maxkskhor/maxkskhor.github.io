@@ -921,6 +921,50 @@ await consumer_task  # the consumer terminated; propagate any exception</code></
     <code>queue.join()</code>, send a sentinel or cancel according to the
     contract, and then await the worker task.</p>
 
+    <h3>Cancellation: request, delivery, cleanup, observation</h3>
+
+    <p><code>task.cancel()</code> requests cancellation; it does not
+    synchronously kill the task. At the next opportunity, normally while the
+    task is suspended at an <code>await</code>, the event loop causes
+    <code>CancelledError</code> to be raised inside that task.</p>
+
+    <pre><code class="language-python">async def worker() -&gt; None:
+    print("worker: started")
+    try:
+        await asyncio.sleep(10)
+        print("worker: completed normally")
+    finally:
+        print("worker: cleanup")
+
+
+async def main() -&gt; None:
+    task = asyncio.create_task(worker())
+    await asyncio.sleep(0.1)
+
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        print("main: observed cancellation")</code></pre>
+
+    <pre><code>cancel() requests cancellation
+CancelledError interrupts the worker's suspended sleep
+the worker's finally block runs while its stack unwinds
+the worker finishes in the cancelled state
+await task raises CancelledError in main
+main observes the cancellation</code></pre>
+
+    <p>Awaiting after <code>cancel()</code> separates requesting cancellation
+    from confirming its completion. It lets worker cleanup finish and makes the
+    final state visible to the coordinator.</p>
+
+    <p>Cancellation is cooperative. If a task occupies the event-loop thread
+    with a long CPU loop containing no <code>await</code>, the loop cannot
+    schedule another task. In this example, <code>main</code> may not even
+    resume from its timer to call <code>cancel()</code> until that loop ends. A
+    pending request is likewise normally delivered only when the task next
+    reaches a suspension point.</p>
+
     <h3>Understanding checkpoint</h3>
 
     <p>The foundation is in place when each statement below can be explained
