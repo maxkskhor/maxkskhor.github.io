@@ -154,6 +154,7 @@
 
   <nav class="route" aria-label="Article contents">
     <strong>Contents</strong>
+    <p>Need the compact API and pattern view? Open the <a href="python-systems-coding-reference.html">Python systems coding reference</a>.</p>
     <div class="route-grid">
       <div class="route-group">
         <strong>Foundations</strong>
@@ -267,6 +268,17 @@ len(items) &gt; 0</code></pre>
       <li>Reacquires the lock before returning.</li>
       <li>Lets the caller check its predicate again while protected.</li>
     </ol>
+
+    <pre><code>consumer owns lock and sees no item
+→ wait() puts consumer in waiting set, releases lock, sleeps
+→ producer acquires lock, appends item, calls notify_all()
+→ consumer is eligible to wake, but producer still owns lock
+→ producer releases lock
+→ notified consumers compete to reacquire it
+→ winner acquires lock; only now does wait() return
+→ while predicate is checked again under the lock</code></pre>
+
+    <p>There may be several notified contenders, but there is no promised FIFO “awakened queue”. Notification makes a waiter eligible to compete for the lock. It does not hand over the lock or reserve the item.</p>
 
     <p>The mental translation is: <em>I cannot proceed in the current state. Let another thread change it, then let me check again.</em></p>
 
@@ -510,6 +522,22 @@ stop_requested.clear()          # true → false</code></pre>
 
     <p>Events are useful for facts such as shutdown requested, configuration ready, or workers allowed to begin. They do not protect a deque, count resources, carry a result, or explain why work failed.</p>
 
+    <pre><code class="language-python">model_ready = Event()
+
+def worker():
+    model_ready.wait()
+    use_model()
+
+load_model()
+model_ready.set()</code></pre>
+
+    <p>A worker created after <code>set()</code> also passes <code>wait()</code> immediately. The signal remains visible until it is explicitly cleared.</p>
+
+    <h3>Why queue closure stays under the condition</h3>
+    <p>The closeable queue waits on compound rules: a producer needs <em>space or closure</em>; a consumer needs <em>an item or closure</em>. A producer asleep inside <code>condition.wait()</code> is not awakened merely because a separate event is set. <code>close()</code> would still need to acquire the condition lock, change lifecycle state consistently with the deque, and notify those condition waiters.</p>
+
+    <p>Using an event as well would duplicate the closed state. Keeping the boolean beside the deque under one condition gives one atomic state model and one waiting mechanism. An additional event is useful only if unrelated external observers need to wait solely for closure.</p>
+
     <div class="callout">A stop event cannot help a worker that is blocked forever inside an unrelated <code>queue.get()</code>. The stop signal and blocking operation must form one coherent protocol—through queue closure, timeouts, or an agreed sentinel.</div>
 
     <p>For a one-way stop signal, call <code>set()</code> once and normally never clear it. Rapidly setting and clearing introduces a protocol in which threads can miss the brief true state.</p>
@@ -560,6 +588,37 @@ Queue.join()  → wait for every put() to receive a task_done()</code></pre>
     <p>Calling <code>task_done()</code> in <code>finally</code> avoids leaving <code>join()</code> blocked if processing raises. Modern Python also provides <code>Queue.shutdown()</code>, but it was added in Python 3.13; code targeting older environments cannot assume it exists.</p>
 
     <p>Avoid check-then-act logic based on <code>empty()</code>, <code>full()</code>, or <code>qsize()</code>. Their answers are snapshots another thread may invalidate immediately. Express the desired behaviour through blocking <code>put()</code> and <code>get()</code>.</p>
+
+    <h3>Using it with worker threads</h3>
+    <p><code>Queue</code> does not create threads. Application code still creates and joins them; the queue supplies the synchronized transfer and backpressure:</p>
+
+    <pre><code class="language-python">jobs = Queue(maxsize=2)
+stop = object()
+
+def worker():
+    while True:
+        item = jobs.get()
+        try:
+            if item is stop:
+                return
+            process(item)
+        finally:
+            jobs.task_done()
+
+workers = [Thread(target=worker) for _ in range(2)]
+for thread in workers:
+    thread.start()
+
+for item in work:
+    jobs.put(item)
+for _ in workers:
+    jobs.put(stop)
+
+jobs.join()                  # all submitted work acknowledged
+for thread in workers:
+    thread.join()            # every worker function terminated</code></pre>
+
+    <p>Submit one sentinel per worker. The sentinel is acknowledged in <code>finally</code> like every other queue entry, allowing the unfinished-work count to reach zero.</p>
 
     <h2 id="pool">15. <code>ThreadPoolExecutor</code> and futures</h2>
     <p>Creating raw threads gives direct control. A pool instead maintains a bounded set of reusable worker threads and accepts many tasks:</p>
@@ -1078,7 +1137,7 @@ main: finished</code></pre>
 
   <footer>
     <span>© 2026 Max Khor</span>
-    <span><a href="python-worker-pool.html">Next: Worker Pool →</a> · <a href="index.html">Home</a> · <a href="https://github.com/maxkskhor">GitHub</a></span>
+    <span><a href="python-systems-coding-reference.html">Pocket reference</a> · <a href="python-worker-pool.html">Worker Pool →</a> · <a href="index.html">Home</a> · <a href="https://github.com/maxkskhor">GitHub</a></span>
   </footer>
 </main>
 <script>
