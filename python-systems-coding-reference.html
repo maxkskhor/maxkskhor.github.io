@@ -50,9 +50,6 @@
     line-height:.96;margin:0;max-width:13ch}
   .dek{font-size:1.15rem;line-height:1.5;color:var(--muted);max-width:60ch;margin:1.4rem 0 0}
   .meta{font-family:var(--sans);font-size:.72rem;color:var(--faint);margin-top:1.2rem}
-  .notice{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
-    padding:1.1rem 1.25rem;margin:2rem 0;font-family:var(--sans);font-size:.88rem}
-  .notice strong{color:var(--accent)}
   .jump{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem 1.2rem;
     padding:1.2rem 0 2.4rem;border-bottom:1px solid var(--rule);font-family:var(--sans);
     font-size:.82rem}
@@ -114,8 +111,6 @@
     <p class="dek">The data structures, graph patterns, concurrency APIs and failure checks I want close at hand when implementing a small stateful system.</p>
     <div class="meta">Max Khor · July 2026 · Compact reference</div>
   </header>
-
-  <div class="notice"><strong>Assessment boundary.</strong> Permission to search standard-library documentation does not necessarily include personal notes. Ask before keeping this page open. If personal notes are not allowed, use it as a pre-session skim and follow the official documentation links at the end.</div>
 
   <nav class="jump" aria-label="Reference sections">
     <a href="#contract">Contract first</a><a href="#structures">Data structures</a>
@@ -180,6 +175,7 @@ smallest = heappop(values)    # O(log n)
 smallest = values[0]          # O(1), no removal
 
 heappush(heap, (run_at, priority, sequence, job_id))</code></pre>
+    <p>Reading <code>values[0]</code> is <code>O(1)</code> because the minimum is already at the root. Removing it is <code>O(log n)</code>: <code>heappop()</code> moves the final element to the root and sifts it down through at most the height of the heap.</p>
     <p>The sequence number makes ties deterministic and avoids comparing non-orderable payloads.</p>
 
     <h2 id="graphs">Dependency ordering with Kahn's algorithm</h2>
