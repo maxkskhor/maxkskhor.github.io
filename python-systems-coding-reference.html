@@ -116,7 +116,9 @@
     <a href="#contract">Contract first</a><a href="#structures">Data structures</a>
     <a href="#search">Search &amp; heaps</a><a href="#graphs">Dependency graphs</a>
     <a href="#threads">Threads &amp; conditions</a><a href="#queue">Blocking queue</a>
-    <a href="#stdlib">Standard queue &amp; pools</a><a href="#asyncio">asyncio</a>
+    <a href="#stdlib">Standard queue</a><a href="#semaphore">Semaphore</a>
+    <a href="#event">Event</a><a href="#pool">Thread pool</a>
+    <a href="#asyncio">asyncio</a>
     <a href="#finish">Final correctness pass</a>
   </nav>
 
@@ -291,22 +293,64 @@ with condition:
         raise QueueClosed</code></pre>
     <p>The loop exits because the predicate succeeded, terminal state was observed, or the one total deadline expired.</p>
 
-    <h2 id="stdlib"><code>queue.Queue</code>, semaphores and thread pools</h2>
-    <pre><code>jobs = Queue(maxsize=2)
+    <h2 id="stdlib">Standard thread queue: <code>queue.Queue</code></h2>
+    <p><code>Queue</code> is Python's built-in synchronized queue for communication between threads. It contains the locking and condition logic needed to block producers while full and consumers while empty.</p>
+    <pre><code>from queue import Queue
+
+jobs = Queue(maxsize=2)
 jobs.put(job)       # calling thread blocks while full
 job = jobs.get()    # calling thread blocks while empty</code></pre>
+    <h3>Unfinished-work accounting</h3>
     <pre><code>put()       opens a work ticket
 get()       assigns the ticket
 task_done() closes the ticket
 join()      waits until no tickets remain open</code></pre>
     <p><code>jobs.join()</code> waits for work acknowledgement. <code>thread.join()</code> waits for a worker function to terminate. A persistent worker loop commonly receives one sentinel per worker and calls <code>task_done()</code> in <code>finally</code>.</p>
-    <pre><code># Counted permits
+
+    <h2 id="semaphore">Semaphore: counted permits</h2>
+    <p>A <code>Semaphore</code> stores a count of interchangeable permits. In this example, <code>permits</code> is a semaphore initialized with three permits, so at most three callers may use the resource concurrently.</p>
+    <pre><code>from threading import Semaphore
+
+permits = Semaphore(3)
+
 permits.acquire()
 try:
     use_resource()
 finally:
     permits.release()</code></pre>
-    <pre><code>future_to_input = {}
+    <p><code>acquire()</code> consumes one permit, blocking when the count is zero. <code>release()</code> returns one permit. This snippet limits concurrent access to a resource; it is not itself a queue.</p>
+    <h3>Using semaphores to implement a bounded queue</h3>
+    <pre><code>from collections import deque
+from threading import Lock, Semaphore
+
+items = deque()
+data_lock = Lock()
+empty_slots = Semaphore(capacity)   # producer may reserve space
+available_items = Semaphore(0)     # consumer waits for published work
+
+# Producer: acquire empty slot → append under lock → release available item
+# Consumer: acquire available item → pop under lock → release empty slot</code></pre>
+    <p>The two semaphores count different facts. A separate lock protects the deque while it is changed.</p>
+
+    <h2 id="event">Event: a persistent signal</h2>
+    <p>An <code>Event</code> is a thread-safe boolean signal. Once set, current and future waiters can observe it until it is cleared.</p>
+    <pre><code>from threading import Event
+
+ready = Event()
+
+def worker():
+    ready.wait()       # block until configuration is ready
+    use_configuration()
+
+load_configuration()
+ready.set()            # current and future waiters may proceed</code></pre>
+    <p>Use an event for a simple fact such as “configuration is ready” or “stop requested.” It does not protect a deque or replace a condition that waits on a compound predicate.</p>
+
+    <h2 id="pool">Thread pool and futures</h2>
+    <p>A thread pool runs independent blocking functions on a bounded set of reusable worker threads. Each submission returns a <code>Future</code> representing its eventual result or exception.</p>
+    <pre><code>from concurrent.futures import ThreadPoolExecutor, as_completed
+
+future_to_input = {}
 with ThreadPoolExecutor(max_workers=4) as pool:
     for value in values:
         future = pool.submit(process, value)
