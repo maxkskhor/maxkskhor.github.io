@@ -123,7 +123,7 @@
   <header>
     <div class="eyebrow">Pocket reference · Python systems</div>
     <h1>Python systems coding reference</h1>
-    <p class="dek">The data structures, graph patterns, concurrency APIs and failure checks I want close at hand when implementing a small stateful system.</p>
+    <p class="dek">A compact reference for Python collections, binary search, heaps, dependency graphs, threads, blocking queues, semaphores, futures, and asyncio.</p>
     <div class="meta">Max Khor · July 2026 · Compact reference</div>
   </header>
 
@@ -248,7 +248,7 @@ if thread.is_alive():
 
     <h3>Primitive selection</h3>
     <div class="table-wrap"><table>
-      <thead><tr><th>Requirement</th><th>Choose</th><th>Mental model</th></tr></thead>
+      <thead><tr><th>Requirement</th><th>Choose</th><th>What it controls</th></tr></thead>
       <tbody>
         <tr><td>Atomic state transition</td><td><code>Lock</code></td><td>One owner of a critical section</td></tr>
         <tr><td>Wait for shared-state predicate</td><td><code>Condition</code></td><td>Lock plus predicate waiters</td></tr>
