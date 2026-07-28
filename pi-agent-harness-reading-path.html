@@ -4,90 +4,113 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pi Agent Harness: A Reading Path | Max Khor</title>
-<meta name="description" content="Nine useful readings for understanding Pi's agent loop, sessions, compaction, extensions, and tool-interface design.">
+<meta name="description" content="Ten readings for understanding Pi's tool protocol, loop, sessions, compaction, extensions, and product philosophy.">
 <meta name="author" content="Max Khor">
 <link rel="canonical" href="https://maxkskhor.github.io/pi-agent-harness-reading-path.html">
 <meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#161310" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://maxkskhor.github.io/pi-agent-harness-reading-path.html">
 <meta property="og:title" content="Pi Agent Harness: A Reading Path">
-<meta property="og:description" content="Nine useful readings for understanding Pi's agent loop, sessions, compaction, extensions, and tool-interface design.">
+<meta property="og:description" content="Ten readings for understanding Pi's tool protocol, loop, sessions, compaction, extensions, and product philosophy.">
 <meta property="og:image" content="https://maxkskhor.github.io/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%231a1712'/%3E%3Ctext%20x='16'%20y='23'%20font-family='Georgia,serif'%20font-size='21'%20font-weight='700'%20text-anchor='middle'%20fill='%23c96a4a'%3EM%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..640;1,9..144,340..560&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340..640;1,9..144,340..560&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 <style>
-  :root{--paper:#f6f3ec;--panel:#f1ede3;--ink:#1a1712;--muted:#615a4e;--faint:#8a8172;--rule:#dcd6c8;--hair:#e6e1d5;--accent:#9a3b2e;--serif:"Fraunces","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI","Helvetica Neue",sans-serif;--mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,monospace}
-  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#161310;--panel:#1d1912;--ink:#efe8dc;--muted:#a89e8d;--faint:#7d7464;--rule:#332e26;--hair:#282219;--accent:#dd8d70}}
-  :root[data-theme="dark"]{--paper:#161310;--panel:#1d1912;--ink:#efe8dc;--muted:#a89e8d;--faint:#7d7464;--rule:#332e26;--hair:#282219;--accent:#dd8d70}
-  *{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:clamp(16px,1.05vw + 13px,18px);line-height:1.65;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E")}
-  a{color:inherit}::selection{background:var(--accent);color:#fff}
-  .page{position:relative;z-index:1;width:min(100% - 2.7rem,860px);margin:0 auto;padding:clamp(1.8rem,5vw,3.7rem) 0 4.5rem}
-  .back{font-family:var(--sans);font-size:.7rem;font-weight:650;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;color:var(--faint)}.back:hover,.back:focus-visible{color:var(--accent);outline:none}
-  header{padding:clamp(3rem,8vw,6rem) 0 clamp(2.2rem,5vw,3.5rem);border-bottom:3px double var(--ink)}
-  .eyebrow{font-family:var(--sans);font-size:.68rem;font-weight:650;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:1rem}
-  h1{font-size:clamp(2.8rem,8.5vw,5.6rem);font-weight:580;line-height:.94;letter-spacing:-.035em;margin:0;max-width:12ch}
-  .lede{font-size:1.18rem;line-height:1.55;color:var(--muted);max-width:62ch;margin:1.5rem 0 0}.meta{font-family:var(--sans);font-size:.7rem;color:var(--faint);margin-top:1.25rem}
-  .contents{margin:2rem 0 0;padding:1.2rem 1.35rem;background:var(--panel);border:1px solid var(--rule)}.contents strong{display:block;font-family:var(--sans);font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:.45rem}.contents a{font-family:var(--sans);font-size:.82rem;text-decoration:none;border-bottom:1px solid var(--rule)}.contents a:hover,.contents a:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
-  section{padding-top:clamp(2.5rem,6vw,4rem)}section + section{margin-top:.5rem;border-top:1px solid var(--rule)}
-  h2{font-family:var(--sans);font-size:.72rem;font-weight:650;letter-spacing:.19em;text-transform:uppercase;color:var(--accent);margin:0 0 1.2rem}
-  .reading{display:grid;grid-template-columns:3rem minmax(0,1fr);gap:1rem;padding:1.55rem 0;border-top:1px solid var(--hair)}.number{font-family:var(--mono);font-size:.8rem;color:var(--faint);padding-top:.25rem}
-  h3{font-size:1.42rem;line-height:1.22;font-weight:600;letter-spacing:-.012em;margin:0}h3 a{text-decoration:none;background-image:linear-gradient(var(--accent),var(--accent));background-size:0 1px;background-repeat:no-repeat;background-position:0 1.16em;transition:background-size .25s,color .18s}h3 a:hover,h3 a:focus-visible{background-size:100% 1px;color:var(--accent);outline:none}
-  .source{font-family:var(--sans);font-size:.68rem;color:var(--faint);margin-top:.4rem}.reading p{margin:.7rem 0 0;color:var(--muted);max-width:67ch}code{font-family:var(--mono);font-size:.82em}
-  .method{margin-top:3rem;padding:clamp(1.5rem,4vw,2.25rem);background:var(--panel);border:1px solid var(--rule)}.method h2{margin-bottom:.75rem}.method p{margin:.2rem 0 1rem;color:var(--muted)}.method ol{margin:0;padding-left:1.35rem}.method li{padding:.18rem 0 .18rem .3rem}.closing{font-size:1.12rem;line-height:1.55;margin:2rem 0 0}
-  footer{border-top:3px double var(--ink);margin-top:3.7rem;padding-top:1.2rem;display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;font-family:var(--sans);font-size:.74rem;color:var(--faint)}footer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--rule)}footer a:hover,footer a:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
-  .theme-toggle{position:fixed;top:clamp(.85rem,2.2vw,1.4rem);right:clamp(.85rem,2.2vw,1.4rem);z-index:5;width:38px;height:38px;display:grid;place-items:center;padding:0;border:1px solid var(--rule);border-radius:50%;background:var(--paper);color:var(--faint);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:color .2s,border-color .2s}.theme-toggle:hover,.theme-toggle:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}.theme-toggle svg{width:17px;height:17px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.theme-toggle .sun{display:none}:root[data-theme="dark"] .theme-toggle .sun{display:block}:root[data-theme="dark"] .theme-toggle .moon{display:none}
-  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .theme-toggle .sun{display:block}:root:not([data-theme="light"]) .theme-toggle .moon{display:none}}
-  @media(max-width:620px){.reading{grid-template-columns:2.3rem minmax(0,1fr);gap:.65rem}h1{max-width:none}}
+:root{--paper:#f6f3ec;--panel:#f1ede3;--ink:#1a1712;--muted:#615a4e;--faint:#8a8172;--rule:#dcd6c8;--hair:#e6e1d5;--accent:#9a3b2e;--code:#ece7dc;--serif:"Fraunces","Iowan Old Style",Georgia,serif;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#161310;--panel:#1d1912;--ink:#efe8dc;--muted:#a89e8d;--faint:#7d7464;--rule:#332e26;--hair:#282219;--accent:#dd8d70;--code:#211c16}}
+:root[data-theme="dark"]{--paper:#161310;--panel:#1d1912;--ink:#efe8dc;--muted:#a89e8d;--faint:#7d7464;--rule:#332e26;--hair:#282219;--accent:#dd8d70;--code:#211c16}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:clamp(16px,.55vw + 14px,18px);line-height:1.67;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E")}.page{position:relative;z-index:1;width:min(100% - 2.5rem,900px);margin:0 auto;padding:clamp(1.8rem,5vw,3.6rem) 0 4.5rem}.back{font-family:var(--sans);font-size:.7rem;font-weight:650;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;color:var(--faint)}.back:hover,.back:focus-visible{color:var(--accent);outline:none}header{padding:clamp(3rem,8vw,6rem) 0 clamp(2.2rem,5vw,3.5rem);border-bottom:3px double var(--ink)}.eyebrow{font-family:var(--sans);font-size:.68rem;font-weight:650;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:1rem}h1{font-size:clamp(2.8rem,9vw,5.4rem);line-height:.96;letter-spacing:-.025em;margin:0;max-width:14ch;font-weight:590}.meta{font-family:var(--sans);font-size:.72rem;color:var(--faint);margin-top:1.3rem;letter-spacing:.05em}.content{padding-top:2.3rem}.content>p,.content>ul,.content>ol,.content>blockquote{max-width:70ch}.content h2{font-family:var(--sans);font-size:1.42rem;line-height:1.25;letter-spacing:-.01em;margin:3.7rem 0 1rem;padding-top:1.3rem;border-top:2px solid var(--ink)}.content h2:first-child{margin-top:0}.content h3{font-size:1.15rem;line-height:1.3;margin:2.2rem 0 .65rem}.content p{margin:.8rem 0}.content ul,.content ol{padding-left:1.35rem}.content li{padding:.15rem 0 .15rem .25rem}.content a{color:var(--accent);text-underline-offset:.16em}.content blockquote{border-left:3px solid var(--accent);margin:1.4rem 0;padding:.15rem 0 .15rem 1.2rem;color:var(--muted)}code{font-family:var(--mono);font-size:.84em;background:var(--code);padding:.1em .28em;border-radius:3px}pre{overflow:auto;background:var(--code);border:1px solid var(--rule);padding:1rem 1.1rem;margin:1.2rem 0 1.5rem;font-size:.82rem;line-height:1.55}pre code{padding:0;background:none;border-radius:0}table{width:100%;border-collapse:collapse;margin:1.35rem 0 1.7rem;font-family:var(--sans);font-size:.84rem;line-height:1.45}th{text-align:left;color:var(--faint);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase}th,td{padding:.65rem .7rem;border-bottom:1px solid var(--rule);vertical-align:top}footer{border-top:3px double var(--ink);margin-top:4rem;padding-top:1.2rem;display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;font-family:var(--sans);font-size:.74rem;color:var(--faint)}footer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--rule)}.theme-toggle{position:fixed;top:clamp(.85rem,2.2vw,1.4rem);right:clamp(.85rem,2.2vw,1.4rem);z-index:5;width:38px;height:38px;display:grid;place-items:center;padding:0;border:1px solid var(--rule);border-radius:50%;background:var(--paper);color:var(--faint);cursor:pointer}.theme-toggle svg{width:17px;height:17px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.theme-toggle .sun{display:none}:root[data-theme="dark"] .theme-toggle .sun{display:block}:root[data-theme="dark"] .theme-toggle .moon{display:none}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .theme-toggle .sun{display:block}:root:not([data-theme="light"]) .theme-toggle .moon{display:none}}
+@media(max-width:680px){.page{width:min(100% - 1.6rem,900px)}.content h2{margin-top:3rem}table{display:block;overflow-x:auto;white-space:normal}pre{font-size:.76rem}}
 </style>
 </head>
 <body>
-  <button class="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch light / dark">
-    <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
-    <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-  </button>
-  <main class="page">
-    <a class="back" href="notes.html">← Technical notes</a>
-    <header>
-      <div class="eyebrow">Agent harnesses · Reading path</div>
-      <h1>Pi Agent Harness</h1>
-      <p class="lede">Nine useful readings for understanding Pi's choices about context, tools, streaming, sessions, and extensibility. Start with the design argument, trace a working implementation, then study how state remains reliable.</p>
-      <div class="meta">Curated by Max Khor · Last checked 26 July 2026</div>
-      <nav class="contents" aria-label="Reading path sections"><strong>Three passes</strong><a href="#orientation">Orient yourself</a> · <a href="#state">Understand the state layer</a> · <a href="#tools">Examine the tool interface</a></nav>
-    </header>
-
-    <section id="orientation">
-      <h2>Start here</h2>
-      <article class="reading"><div class="number">01</div><div><h3><a href="https://mariozechner.at/posts/2025-11-30-pi-coding-agent/" target="_blank" rel="noopener">What I learned building an opinionated and minimal coding agent</a></h3><div class="source">Mario Zechner · Design overview</div><p>The best orientation to Pi's design. It covers the multi-provider model layer, event streaming, the four-tool surface, the small system prompt, and the features Pi deliberately leaves out. Read this first so the implementation details have an argument behind them.</p></div></article>
-      <article class="reading"><div class="number">02</div><div><h3><a href="https://build-your-own-pi-cn.enochzhang.chatgpt.site/" target="_blank" rel="noopener">Build Pi from a complete offline trace</a></h3><div class="source">Hands-on course · Chinese · TypeScript</div><p>A course that rebuilds a small Pi-like harness from a deterministic trace. It covers events, canonical messages, an agent loop, session trees, compaction, extensions, and evaluation. The checkpoint machinery is optional. The useful part is the sequence of mechanisms and failure cases.</p></div></article>
-      <article class="reading"><div class="number">03</div><div><h3><a href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">Read the source</a> and <a href="https://pi.dev/docs/latest/" target="_blank" rel="noopener">official documentation</a></h3><div class="source">Pi repository and current docs</div><p>Use the repository after the overview and course have given you a map. Focus on the model stream, agent loop, session manager, compaction, and extension types. Follow one execution path instead of touring every package.</p></div></article>
-    </section>
-
-    <section id="state">
-      <h2>Understand the state layer</h2>
-      <article class="reading"><div class="number">04</div><div><h3><a href="https://pi.dev/docs/latest/session-format" target="_blank" rel="noopener">Session file format</a></h3><div class="source">Official Pi documentation</div><p>Pi stores sessions as append-only JSONL entries linked by <code>id</code> and <code>parentId</code>. This explains how the active branch is rebuilt, how compaction entries act as checkpoints, and how branch summaries preserve useful state when navigating the tree.</p></div></article>
-      <article class="reading"><div class="number">05</div><div><h3><a href="https://pi.dev/docs/latest/compaction" target="_blank" rel="noopener">Compaction and branch summarisation</a></h3><div class="source">Official Pi documentation</div><p>Focus on the cut-point rules, retained recent context, structured summaries, and cumulative file tracking. Compaction changes the context projection without deleting the underlying session history.</p></div></article>
-      <article class="reading"><div class="number">06</div><div><h3><a href="https://pi.dev/docs/latest/extensions" target="_blank" rel="noopener">Extensions</a></h3><div class="source">Official Pi documentation</div><p>Extensions are Pi's main escape hatch. They can observe lifecycle events, register tools and commands, intercept tool calls, and change context or model behaviour without expanding the core agent. Read this after the loop and session model are clear.</p></div></article>
-    </section>
-
-    <section id="tools">
-      <h2>Examine the tool-interface argument</h2>
-      <article class="reading"><div class="number">07</div><div><h3><a href="https://mariozechner.at/posts/2025-11-02-what-if-you-dont-need-mcp/" target="_blank" rel="noopener">What if you do not need MCP at all?</a></h3><div class="source">Mario Zechner · Design argument</div><p>The argument is not simply “CLI good, MCP bad.” It is about paying context cost only when a tool is needed: small command-line programs, documentation read on demand, and fewer schemas injected into every model request.</p></div></article>
-      <article class="reading"><div class="number">08</div><div><h3><a href="https://mariozechner.at/posts/2025-08-15-mcp-vs-cli/" target="_blank" rel="noopener">MCP vs CLI: benchmarking tools for coding agents</a></h3><div class="source">Mario Zechner · Benchmark</div><p>The empirical companion to the design argument. Use it to separate the effect of protocol choice from tool descriptions, ergonomics, model familiarity, and benchmark design.</p></div></article>
-      <article class="reading"><div class="number">09</div><div><h3><a href="https://mariozechner.at/posts/2025-06-02-prompts-are-code/" target="_blank" rel="noopener">Prompts are code, files are state</a></h3><div class="source">Mario Zechner · Workflow essay</div><p>The broader philosophy behind Pi: prompts express behaviour, plain files preserve inspectable state, and the harness should make both easy to read and change.</p></div></article>
-    </section>
-
-    <aside class="method"><h2>How to use this path</h2><p>Do not read all nine links passively. For each mechanism:</p><ol><li>Predict the state and ownership rules before reading the implementation.</li><li>Trace one successful execution from input to terminal result.</li><li>Introduce one failure, such as an unmatched tool result or a consumer waiting when a stream closes.</li><li>Explain the invariant that catches it without referring to the test output.</li></ol></aside>
-    <p class="closing">The goal is not to reproduce Pi feature for feature. It is to understand which parts of an agent harness must remain observable, durable, and correct when the model, tools, or user interrupt the happy path.</p>
-    <footer><span>maxkskhor.github.io</span><span><a href="notes.html">Technical notes</a> · <a href="index.html">Home</a> · <a href="https://github.com/maxkskhor" target="_blank" rel="noopener">GitHub</a></span></footer>
-  </main>
-  <script>(function(){var btn=document.querySelector('.theme-toggle');if(!btn)return;var mq=window.matchMedia('(prefers-color-scheme: dark)');function current(){var s=document.documentElement.getAttribute('data-theme');return(s==='dark'||s==='light')?s:(mq.matches?'dark':'light')}function label(){btn.setAttribute('aria-label',current()==='dark'?'Switch to light theme':'Switch to dark theme')}label();btn.addEventListener('click',function(){var next=current()==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',next);try{localStorage.setItem('theme',next)}catch(e){}label()})})();</script>
-  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "4ed5ad60c8424fceb1e53e590b0b0849"}'></script>
+<button class="theme-toggle" type="button" aria-label="Switch theme" title="Switch light / dark"><svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+<main class="page">
+<a class="back" href="notes.html">← Technical notes</a>
+<header><div class="eyebrow">Agent harnesses · Reading path</div><h1>Pi Agent Harness: A Reading Path</h1><div class="meta">10 readings · Checked 28 July 2026</div></header>
+<article class="content"><p>Pi&#39;s source is compact enough to trace, but the code becomes much easier to
+read once three ideas are clear: the tool-call protocol, the package boundaries,
+and the difference between durable session state and model context.</p>
+<h2>Orientation</h2>
+<h3>1. Pi&#39;s design argument</h3>
+<p><a href="https://mariozechner.at/posts/2025-11-30-pi-coding-agent/">Read Mario Zechner&#39;s Pi overview</a>.</p>
+<p>The overview covers Pi&#39;s product choices in one pass: multi-provider model
+support, normalized events, four built-in tools, a small prompt, trusted
+extensions, and the features left outside the core product.</p>
+<h3>2. Source and documentation</h3>
+<p><a href="https://github.com/earendil-works/pi">Browse <code>earendil-works/pi</code></a> and
+<a href="https://pi.dev/docs/latest/">open the current documentation</a>.</p>
+<p>Start with <code>packages/ai</code>, <code>packages/agent</code>, <code>packages/coding-agent</code>, and
+<code>packages/tui</code>. Follow one request through provider conversion, streaming, the
+agent loop, tool results, and session persistence.</p>
+<h3>3. Source study notes</h3>
+<p><a href="https://maxkskhor.github.io/pi-source-study-notes.html">Read the Pi source study notes</a>.</p>
+<p>The notes trace the core mechanisms against a pinned Pi snapshot: event-stream
+Promises, canonical completion, nested loop control, steering and follow-ups,
+tool validation, append-only branching, compaction, extensions, tmux, and the
+security boundary. Five integrated exercises test the interactions.</p>
+<h2>Tool-call protocol and loop</h2>
+<h3>4. Anthropic&#39;s tool-use contract</h3>
+<p><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works">Read how tool use works</a>.</p>
+<p>Focus on the assistant tool request, the paired result id, and the next model
+request. Pi normalizes several provider encodings around this same semantic
+contract.</p>
+<h3>5. A minimal coding-agent loop</h3>
+<p><a href="https://www.byoharness.dev/chapters/01-the-agent-loop.html">Read the agent-loop chapter</a>.</p>
+<p>This chapter provides a small request, tool execution, result, and continuation
+trace before Pi&#39;s streaming, sessions, and extensions add more state.</p>
+<h3>6. Optional Pi reconstruction course</h3>
+<p><a href="https://build-your-own-pi-cn.enochzhang.chatgpt.site/">Open the Chinese TypeScript course</a>.</p>
+<p>Use this as a conceptual workbook. The useful chapters cover canonical
+messages, the loop, session trees, compaction, extensions, and deterministic
+evaluation. Its generated checkpoint and practice-directory workflow adds
+ceremony and can obscure the mechanism, so the source study notes use upstream
+Pi and smaller traces instead.</p>
+<h2>Sessions, compaction, and extensions</h2>
+<h3>7. Session file format</h3>
+<p><a href="https://pi.dev/docs/latest/session-format">Read the session-format documentation</a>.</p>
+<p>The JSONL entries form a tree through <code>id</code> and <code>parentId</code>. The selected leaf
+determines the active path while every branch remains durable.</p>
+<h3>8. Compaction and branch summarization</h3>
+<p><a href="https://pi.dev/docs/latest/compaction">Read the compaction documentation</a>.</p>
+<p>Trace the summary entry, <code>firstKeptEntryId</code>, safe cut points, retained raw
+suffix, repeated compaction, and token trigger. Compaction changes future model
+context while the raw session remains available.</p>
+<h3>9. Extensions and security</h3>
+<p><a href="https://pi.dev/docs/latest/extensions">Read the extension documentation</a> and
+<a href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md">the security boundary</a>.</p>
+<p>Extensions are trusted TypeScript in the Pi process. They can register tools,
+intercept calls, alter context, add UI, and persist state. OS containment owns
+filesystem, process, network, and credential isolation.</p>
+<h2>Product philosophy</h2>
+<h3>10. CLI tools, MCP, and on-demand context</h3>
+<p><a href="https://mariozechner.at/posts/2025-11-02-what-if-you-dont-need-mcp/">Read the design essay</a>
+and <a href="https://mariozechner.at/posts/2025-08-15-mcp-vs-cli/">the accompanying benchmark</a>.</p>
+<p>Pi favors a small built-in tool surface, command-line programs, documentation
+loaded when needed, and optional extensions. The benchmark helps separate
+protocol effects from descriptions, ergonomics, model familiarity, and task
+design.</p>
+<h2>How to study the path</h2>
+<p>For each mechanism:</p>
+<ol>
+<li>Write the expected message or state sequence.</li>
+<li>Read one small source slice and correct that trace.</li>
+<li>Add one failure, such as response truncation, invalid tool arguments,
+cancellation, an orphaned tool result, or compaction at an unsafe boundary.</li>
+<li>Name the component that owns each decision.</li>
+<li>Check the resulting durable history and the next model context separately.</li>
+</ol>
+<p>The source study notes provide the shared vocabulary and the integrated traces.
+The external readings supply design rationale, API contracts, and current
+documentation.</p>
+</article>
+<footer><span>maxkskhor.github.io</span><span><a href="notes.html">Technical notes</a> · <a href="index.html">Home</a> · <a href="https://github.com/maxkskhor">GitHub</a></span></footer>
+</main>
+<script>(function(){var b=document.querySelector('.theme-toggle');if(!b)return;var q=window.matchMedia('(prefers-color-scheme: dark)');function c(){var s=document.documentElement.getAttribute('data-theme');return(s==='dark'||s==='light')?s:(q.matches?'dark':'light')}b.addEventListener('click',function(){var n=c()==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);try{localStorage.setItem('theme',n)}catch(e){}})})();</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"4ed5ad60c8424fceb1e53e590b0b0849"}'></script>
 </body>
 </html>
