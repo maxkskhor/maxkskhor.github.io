@@ -31,7 +31,7 @@
 <main class="page">
 <a class="back" href="notes.html">← Technical notes</a>
 <header><div class="eyebrow">Agent harnesses · Reading path</div><h1>Pi Agent Harness: A Reading Path</h1><p class="dek">An ordered path through Pi design, tool-use contracts, source, session JSONL, compaction, extensions, and product philosophy.</p><div class="meta">Checked 29 July 2026</div></header>
-<nav class="route" aria-label="Article contents"><strong>Contents</strong><ul><li><a href="#orientation">Orientation</a></li><li><a href="#tool-call-protocol-and-loop">Tool-call protocol and loop</a></li><li><a href="#sessions-compaction-and-extensions">Sessions, compaction, and extensions</a></li><li><a href="#product-philosophy">Product philosophy</a></li><li><a href="#how-to-study-the-path">How to study the path</a></li></ul></nav>
+<nav class="route" aria-label="Article contents"><strong>Contents</strong><ul><li><a href="#orientation">Orientation</a></li><li><a href="#tool-call-protocol">Tool-call protocol</a></li><li><a href="#sessions-compaction-and-extensions">Sessions, compaction, and extensions</a></li><li><a href="#product-philosophy">Product philosophy</a></li><li><a href="#how-to-study-the-path">How to study the path</a></li></ul></nav>
 <article><p>Pi's source is compact enough to trace, but the code becomes much easier to
 read once three ideas are clear: the tool-call protocol, the package boundaries,
 and the difference between durable session state and model context.</p>
@@ -53,34 +53,30 @@ agent loop, tool results, and session persistence.</p>
 Promises, canonical completion, nested loop control, steering and follow-ups,
 tool validation, append-only branching, compaction, extensions, tmux, and the
 security boundary. Five integrated exercises test the interactions.</p>
-<h2 id="tool-call-protocol-and-loop">Tool-call protocol and loop</h2>
+<h2 id="tool-call-protocol">Tool-call protocol</h2>
 <h3 id="4-anthropics-tool-use-contract">4. Anthropic's tool-use contract</h3>
 <p><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works">Read how tool use works</a>.</p>
 <p>Focus on the assistant tool request, the paired result id, and the next model
 request. Pi normalizes several provider encodings around this same semantic
 contract.</p>
-<h3 id="5-a-minimal-coding-agent-loop">5. A minimal coding-agent loop</h3>
-<p><a href="https://www.byoharness.dev/chapters/01-the-agent-loop.html">Read the agent-loop chapter</a>.</p>
-<p>This chapter provides a small request, tool execution, result, and continuation
-trace before Pi's streaming, sessions, and extensions add more state.</p>
 <h2 id="sessions-compaction-and-extensions">Sessions, compaction, and extensions</h2>
-<h3 id="6-session-file-format">6. Session file format</h3>
+<h3 id="5-session-file-format">5. Session file format</h3>
 <p><a href="https://pi.dev/docs/latest/session-format">Read the session-format documentation</a>.</p>
 <p>The JSONL entries form a tree through <code>id</code> and <code>parentId</code>. The selected leaf
 determines the active path while every branch remains durable.</p>
-<h3 id="7-compaction-and-branch-summarization">7. Compaction and branch summarization</h3>
+<h3 id="6-compaction-and-branch-summarization">6. Compaction and branch summarization</h3>
 <p><a href="https://pi.dev/docs/latest/compaction">Read the compaction documentation</a>.</p>
 <p>Trace the summary entry, <code>firstKeptEntryId</code>, safe cut points, retained raw
 suffix, repeated compaction, and token trigger. Compaction changes future model
 context while the raw session remains available.</p>
-<h3 id="8-extensions-and-security">8. Extensions and security</h3>
+<h3 id="7-extensions-and-security">7. Extensions and security</h3>
 <p><a href="https://pi.dev/docs/latest/extensions">Read the extension documentation</a> and
 <a href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md">the security boundary</a>.</p>
 <p>Extensions are trusted TypeScript in the Pi process. They can register tools,
 intercept calls, alter context, add UI, and persist state. OS containment owns
 filesystem, process, network, and credential isolation.</p>
 <h2 id="product-philosophy">Product philosophy</h2>
-<h3 id="9-cli-tools-mcp-and-on-demand-context">9. CLI tools, MCP, and on-demand context</h3>
+<h3 id="8-cli-tools-mcp-and-on-demand-context">8. CLI tools, MCP, and on-demand context</h3>
 <p><a href="https://mariozechner.at/posts/2025-11-02-what-if-you-dont-need-mcp/">Read the design essay</a>
 and <a href="https://mariozechner.at/posts/2025-08-15-mcp-vs-cli/">the accompanying benchmark</a>.</p>
 <p>Pi favors a small built-in tool surface, command-line programs, documentation
