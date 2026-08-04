@@ -110,6 +110,9 @@
     transition:background-size .32s ease,color .2s}
   .item h3 a:hover,.item h3 a:focus-visible{background-size:100% 1px;color:var(--accent);outline:none}
   .item p{margin:.55rem 0 0;color:var(--muted);font-size:1.02rem;line-height:1.5;max-width:66ch}
+  .item p a{color:inherit;text-decoration:underline;text-decoration-color:var(--hair);
+    text-underline-offset:2px;transition:color .2s,text-decoration-color .2s}
+  .item p a:hover,.item p a:focus-visible{color:var(--accent);text-decoration-color:var(--accent);outline:none}
   .meta{flex:none;font-family:var(--sans);font-size:.68rem;font-weight:600;letter-spacing:.1em;
     text-transform:uppercase;color:var(--accent);white-space:nowrap;padding-top:.3rem}
 
@@ -209,9 +212,9 @@
       <article class="item">
         <div class="top">
           <h3><a href="https://github.com/maxkskhor/data-harness" target="_blank" rel="noopener">data-harness</a></h3>
-          <span class="meta">Python · SDK</span>
+          <span class="meta">Python · SDK · PyPI</span>
         </div>
-        <p>Python SDK for controlled data-agent workflows. No bash. Handle-based state. Logs that reconstruct every run.</p>
+        <p>Published SDK for controlled data-agent workflows: Python execution only (no bash), handle-based state so large tables never hit the prompt, and a built-in eval harness with cost-tracked leaderboards. Deployed end-to-end as <a href="https://data-harness-ui.vercel.app" target="_blank" rel="noopener">data-harness-ui</a> — a chat workbench with GitHub OAuth, per-user budgets, and streamed chart rendering.</p>
       </article>
       <article class="item">
         <div class="top">
